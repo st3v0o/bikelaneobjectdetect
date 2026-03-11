@@ -1,93 +1,128 @@
-<script>
-  const SUPABASE_URL = {{ supabase_url|tojson }};
-  const SUPABASE_ANON_KEY = {{ supabase_anon_key|tojson }};
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Bike Lane Hazard Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  const map = L.map("map").setView([37.54, -77.43], 13);
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
-
-  const bounds = L.latLngBounds([]);
-
-  function escapeHtml(str) {
-    if (str == null) return "";
-    return String(str)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  async function loadDetections() {
-    const { data, error } = await supabaseClient
-      .from("detections")
-      .select("*")
-      .not("latitude", "is", null)
-      .not("longitude", "is", null);
-
-    if (error) {
-      console.error("Supabase query error:", error);
-      alert("Error loading detections. Check browser console.");
-      return;
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
     }
 
-    console.log("Detections returned:", data);
-
-    if (!data || data.length === 0) {
-      console.log("No detections found.");
-      return;
+    #map {
+      width: 100%;
+      height: 100vh;
     }
 
-    data.forEach((row) => {
-      const lat = Number(row.latitude);
-      const lon = Number(row.longitude);
+    .popup-img {
+      width: 100%;
+      max-width: 280px;
+      height: auto;
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
 
-      console.log("Row coords:", row.id, lat, lon, row);
+  <script>
+    const SUPABASE_URL = {{ supabase_url|tojson }};
+    const SUPABASE_ANON_KEY = {{ supabase_anon_key|tojson }};
 
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        console.warn("Skipping invalid coordinates:", row);
+    console.log("Supabase global:", typeof supabase);
+
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const map = L.map("map").setView([37.54, -77.43], 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const bounds = L.latLngBounds([]);
+
+    function escapeHtml(str) {
+      if (str == null) return "";
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    async function loadDetections() {
+      const { data, error } = await supabaseClient
+        .from("detections")
+        .select("*")
+        .not("latitude", "is", null)
+        .not("longitude", "is", null);
+
+      if (error) {
+        console.error("Supabase query error:", error);
+        alert("Error loading detections. Check browser console.");
         return;
       }
 
-      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-        console.warn("Skipping out-of-range coordinates:", row);
+      console.log("Detections returned:", data);
+
+      if (!data || data.length === 0) {
+        console.log("No detections found.");
         return;
       }
 
-      const marker = L.circleMarker([lat, lon], {
-        radius: 6,
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 0.8
-      }).addTo(map);
+      data.forEach((row) => {
+        const lat = Number(row.latitude);
+        const lon = Number(row.longitude);
 
-      const popupHtml = `
-        <div style="max-width: 300px;">
-          <strong>${escapeHtml(row.class_name || "Hazard")}</strong><br>
-          Job: ${escapeHtml(row.job_name || "N/A")}<br>
-          Confidence: ${row.confidence != null ? Number(row.confidence).toFixed(2) : "N/A"}<br>
-          Time: ${row.timestamp_seconds != null ? row.timestamp_seconds + " sec" : "N/A"}<br>
-          Lat: ${lat}<br>
-          Lon: ${lon}
-          ${row.image_url ? `<br><img class="popup-img" src="${row.image_url}" alt="Hazard image">` : ""}
-        </div>
-      `;
+        console.log("Row coords:", row.id, lat, lon);
 
-      marker.bindPopup(popupHtml);
-      bounds.extend([lat, lon]);
-    });
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
 
-    console.log("Bounds valid?", bounds.isValid(), bounds);
+        const marker = L.circleMarker([lat, lon], {
+          radius: 6,
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.8
+        }).addTo(map);
 
-    if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [30, 30] });
+        const popupHtml = `
+          <div style="max-width: 300px;">
+            <strong>${escapeHtml(row.class_name || "Hazard")}</strong><br>
+            Job: ${escapeHtml(row.job_name || "N/A")}<br>
+            Confidence: ${row.confidence != null ? Number(row.confidence).toFixed(2) : "N/A"}<br>
+            Time: ${row.timestamp_seconds != null ? row.timestamp_seconds + " sec" : "N/A"}<br>
+            Lat: ${lat}<br>
+            Lon: ${lon}
+            ${row.image_url ? `<br><img class="popup-img" src="${row.image_url}" alt="Hazard image">` : ""}
+          </div>
+        `;
+
+        marker.bindPopup(popupHtml);
+        bounds.extend([lat, lon]);
+      });
+
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+      }
     }
-  }
 
-  loadDetections();
-</script>
+    loadDetections();
+  </script>
+</body>
+</html>
