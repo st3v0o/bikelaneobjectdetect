@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Bike Lane Upload</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 16px; }
+    form { display: grid; gap: 14px; }
+    label { font-weight: 600; }
+    input, button { padding: 10px; font-size: 16px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 20px; }
+    pre { background: #f6f6f6; padding: 12px; border-radius: 8px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Upload Bike Ride Files</h1>
+    <form id="uploadForm">
+      <div>
+        <label for="job_name">Job name</label><br>
+        <input type="text" id="job_name" name="job_name" placeholder="richmond-ride-001">
+      </div>
+
+      <div>
+        <label for="video_start_iso">Video start ISO (optional)</label><br>
+        <input type="text" id="video_start_iso" name="video_start_iso" placeholder="2026-03-10T14:30:00+00:00">
+      </div>
+
+      <div>
+        <label for="video">Video</label><br>
+        <input type="file" id="video" name="video" accept="video/*" required>
+      </div>
+
+      <div>
+        <label for="gpx">GPX</label><br>
+        <input type="file" id="gpx" name="gpx" accept=".gpx,application/gpx+xml" required>
+      </div>
+
+      <button type="submit">Upload and Start Processing</button>
+    </form>
+
+    <h2>Response</h2>
+    <pre id="result">Waiting...</pre>
+  </div>
+
+  <script>
+    const form = document.getElementById("uploadForm");
+    const result = document.getElementById("result");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      result.textContent = "Uploading and submitting job...";
+
+      const formData = new FormData(form);
+
+      try {
+        const res = await fetch("/upload", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+        result.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        result.textContent = "Error: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>
