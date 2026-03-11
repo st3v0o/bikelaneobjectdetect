@@ -68,7 +68,7 @@
         .select("id, latitude, longitude, image_url, confidence, class_name, job_name, timestamp_seconds")
         .not("latitude", "is", null)
         .not("longitude", "is", null)
-        .order("created_on", { ascending: false });
+        .order("created on", { ascending: false });
 
       if (error) {
         console.error("Supabase query error:", error);
