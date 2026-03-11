@@ -47,24 +47,38 @@
   <script>
     const form = document.getElementById("uploadForm");
     const result = document.getElementById("result");
-
+  
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-
+  
       result.textContent = "Uploading and submitting job...";
-
+  
       const formData = new FormData(form);
-
+  
       try {
         const res = await fetch("/upload", {
           method: "POST",
           body: formData
         });
-
-        const data = await res.json();
-        result.textContent = JSON.stringify(data, null, 2);
+  
+        const text = await res.text();
+  
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = {
+            error: "Server returned non-JSON response",
+            status: res.status,
+            body: text.slice(0, 1000)
+          };
+        }
+  
+        result.textContent = JSON.stringify(parsed, null, 2);
       } catch (err) {
-        result.textContent = "Error: " + err.message;
+        result.textContent = JSON.stringify({
+          error: err.message
+        }, null, 2);
       }
     });
   </script>
