@@ -2,26 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Video and GPX Upload</title>
+  <title>Bike Lane Job Submitter</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; }
     form { display: grid; gap: 14px; }
     label { font-weight: 600; }
-    input, button { padding: 10px; font-size: 16px; }
+    input, button { padding: 10px; font-size: 16px; width: 100%; box-sizing: border-box; }
     .card { border: 1px solid #ddd; border-radius: 10px; padding: 20px; }
     pre { background: #f6f6f6; padding: 12px; border-radius: 8px; overflow: auto; white-space: pre-wrap; }
-    small { color: #666; }
+    small { color: #666; display: block; margin-top: 4px; }
+    code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>Upload Bike Ride Files</h1>
+    <h1>Submit Bike Lane Processing Job</h1>
 
-    <form id="uploadForm">
+    <p>First upload your files manually to Supabase Storage, then submit the object paths here.</p>
+
+    <p>Example:</p>
+    <pre>source-videos / richmond-ride-001 / input.mp4
+source-gpx    / richmond-ride-001 / track.gpx</pre>
+
+    <form id="jobForm">
       <div>
         <label for="job_name">Job name</label><br>
-        <input type="text" id="job_name" name="job_name" placeholder="richmond-ride-001">
+        <input type="text" id="job_name" name="job_name" placeholder="richmond-ride-001" required>
+      </div>
+
+      <div>
+        <label for="video_object_path">Video object path</label><br>
+        <input type="text" id="video_object_path" name="video_object_path" placeholder="richmond-ride-001/input.mp4" required>
+        <small>This should exist in the <code>source-videos</code> bucket.</small>
+      </div>
+
+      <div>
+        <label for="gpx_object_path">GPX object path</label><br>
+        <input type="text" id="gpx_object_path" name="gpx_object_path" placeholder="richmond-ride-001/track.gpx" required>
+        <small>This should exist in the <code>source-gpx</code> bucket.</small>
       </div>
 
       <div>
@@ -30,17 +49,7 @@
         <small>Leave blank if the video and GPX started at the same time.</small>
       </div>
 
-      <div>
-        <label for="video">Video</label><br>
-        <input type="file" id="video" name="video" accept="video/*" required>
-      </div>
-
-      <div>
-        <label for="gpx">GPX</label><br>
-        <input type="file" id="gpx" name="gpx" accept=".gpx,application/gpx+xml" required>
-      </div>
-
-      <button type="submit">Upload and Start Processing</button>
+      <button type="submit">Submit Processing Job</button>
     </form>
 
     <h2>Response</h2>
@@ -50,17 +59,17 @@
   </div>
 
   <script>
-    const form = document.getElementById("uploadForm");
+    const form = document.getElementById("jobForm");
     const result = document.getElementById("result");
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      result.textContent = "Uploading and submitting job...";
+      result.textContent = "Submitting job...";
 
       const formData = new FormData(form);
 
       try {
-        const res = await fetch("/upload", {
+        const res = await fetch("/submit-job", {
           method: "POST",
           body: formData
         });
