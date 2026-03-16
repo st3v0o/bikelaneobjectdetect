@@ -4,7 +4,7 @@ import traceback
 from typing import List, Dict, Any
 
 from flask import Flask, render_template, request, jsonify
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import RequestEntityTooLarge, HTTPException
 
 from supabase import create_client
 import modal
@@ -120,8 +120,27 @@ def handle_file_too_large(e):
     return jsonify({"error": "Upload too large"}), 413
 
 
+@app.errorhandler(404)
+def handle_404(e):
+    return jsonify(
+        {
+            "error": "Route not found",
+            "path": request.path,
+            "method": request.method,
+        }
+    ), 404
+
+
 @app.errorhandler(Exception)
 def handle_unexpected_error(e):
+    if isinstance(e, HTTPException):
+        return jsonify(
+            {
+                "error": e.description,
+                "type": e.__class__.__name__,
+            }
+        ), e.code
+
     app.logger.exception("Unhandled exception")
     return jsonify(
         {
@@ -184,6 +203,47 @@ def list_storage_files():
                 "error": str(e),
                 "type": e.__class__.__name__,
                 "traceback": traceback.format_exc(),
+            }
+        ), 500
+
+
+@app.get("/job-status/<job_name>/<run_id>")
+def job_status(job_name, run_id):
+    app.logger.info(f"Entered /job-status for job_name={job_name}, run_id={run_id}")
+
+    try:
+        res = (
+            supabase.table("job_runs")
+            .select("*")
+            .eq("job_name", job_name)
+            .eq("run_id", run_id)
+            .limit(1)
+            .execute()
+        )
+
+        rows = res.data or []
+        if not rows:
+            return jsonify(
+                {
+                    "status": "unknown",
+                    "step": "not_found",
+                    "message": "No job status found yet",
+                    "job_name": job_name,
+                    "run_id": run_id,
+                }
+            ), 404
+
+        return jsonify(rows[0])
+
+    except Exception as e:
+        app.logger.exception("Exception inside /job-status")
+        return jsonify(
+            {
+                "status": "error",
+                "step": "status_lookup_failed",
+                "message": str(e),
+                "job_name": job_name,
+                "run_id": run_id,
             }
         ), 500
 
