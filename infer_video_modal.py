@@ -62,7 +62,7 @@ def run_video(
     }
 
     FRAME_FPS_EXTRACT = 1
-    MIN_CONFIDENCE = 0.25
+    MIN_CONFIDENCE = 0.6
 
     # Overlap tuning:
     # Increase shrink + thresholds to make detections less sensitive.
