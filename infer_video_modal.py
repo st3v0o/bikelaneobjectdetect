@@ -95,6 +95,8 @@ def run_video(
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     supabase = create_client(supabase_url, supabase_key)
 
+    update_job_status("running", "starting", "Job started")
+
     def update_job_status(status: str, step: str, message: str = "", extra: dict | None = None):
         payload = {
             "job_name": job_name,
