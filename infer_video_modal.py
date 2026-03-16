@@ -41,6 +41,7 @@ def run_video(
     video_url: str,
     gpx_url: str,
     job_name: str,
+    run_id: str,
     video_start_iso: str | None = None,
 ):
     import cv2
@@ -50,7 +51,7 @@ def run_video(
     from supabase import create_client
     from ultralytics import YOLO
 
-    SCRIPT_VERSION = "outline-only-v5-conf06-unique-run"
+    SCRIPT_VERSION = "debug-conf06-status-v1"
 
     # ----------------------------
     # Config
@@ -75,18 +76,17 @@ def run_video(
 
     UPSERT_TO_DB = True
     DETECTIONS_TABLE = "detections"
+    JOB_RUNS_TABLE = "job_runs"
     OVERLAYS_BUCKET = "overlays"
     RESULTS_BUCKET = "results"
 
     MODEL_PATH = "/root/models/models/best.pt"
 
-    # Make this visually unmistakable while debugging
+    # Debug styling so you instantly know this renderer is being used
     BIKE_LANE_COLOR = (255, 255, 255)  # white
     HAZARD_COLOR = (0, 255, 255)       # yellow
     BIKE_LANE_THICKNESS = 8
     HAZARD_THICKNESS = 10
-
-    run_id = uuid.uuid4().hex[:10]
 
     # ----------------------------
     # Supabase
@@ -95,14 +95,34 @@ def run_video(
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     supabase = create_client(supabase_url, supabase_key)
 
+    def update_job_status(status: str, step: str, message: str = "", extra: dict | None = None):
+        payload = {
+            "job_name": job_name,
+            "run_id": run_id,
+            "status": status,
+            "step": step,
+            "message": message,
+            "script_version": SCRIPT_VERSION,
+            "min_confidence": MIN_CONFIDENCE,
+        }
+        if extra:
+            payload.update(extra)
+
+        try:
+            supabase.table(JOB_RUNS_TABLE).upsert(payload).execute()
+        except Exception as e:
+            print(f"Warning: failed to update job status: {e}")
+
     print(f"SCRIPT_VERSION={SCRIPT_VERSION}")
-    print(f"MIN_CONFIDENCE={MIN_CONFIDENCE}")
     print(f"JOB_NAME={job_name}")
     print(f"RUN_ID={run_id}")
+    print(f"MIN_CONFIDENCE={MIN_CONFIDENCE}")
 
     assert abs(MIN_CONFIDENCE - 0.6) < 1e-9, f"Expected 0.6, got {MIN_CONFIDENCE}"
 
-    # Delete old DB rows for this job so you don't mix runs
+    update_job_status("running", "starting", "Job started")
+
+    # Delete old DB rows for this job so results are not mixed
     if UPSERT_TO_DB:
         try:
             supabase.table(DETECTIONS_TABLE).delete().eq("job_name", job_name).execute()
@@ -371,6 +391,17 @@ def run_video(
             label = f'{hazard["class_name"]} conf={hazard["confidence"]:.2f}'
             draw_label(image, hazard["shape"], label, HAZARD_COLOR)
 
+        cv2.putText(
+            image,
+            f"DEBUG {SCRIPT_VERSION} conf={MIN_CONFIDENCE} run={run_id}",
+            (30, 60),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.1,
+            (255, 0, 255),
+            3,
+            cv2.LINE_AA,
+        )
+
         return bool(cv2.imwrite(str(save_path), image))
 
     def upload_file_and_get_url(bucket: str, object_path: str, local_path: Path, content_type: str) -> str:
@@ -382,324 +413,405 @@ def run_video(
             )
         return supabase.storage.from_(bucket).get_public_url(object_path)
 
-    # ----------------------------
-    # Download inputs
-    # ----------------------------
-    print(f"Downloading video from: {video_url}")
-    urlretrieve(video_url, video_path)
+    try:
+        # ----------------------------
+        # Download inputs
+        # ----------------------------
+        update_job_status("running", "downloading_inputs", "Downloading video and GPX")
+        print(f"Downloading video from: {video_url}")
+        urlretrieve(video_url, video_path)
 
-    print(f"Downloading GPX from: {gpx_url}")
-    urlretrieve(gpx_url, gpx_path)
+        print(f"Downloading GPX from: {gpx_url}")
+        urlretrieve(gpx_url, gpx_path)
 
-    gps_track = load_gpx_track(gpx_path)
-    if not gps_track:
-        raise RuntimeError("No timestamped GPX track points found in GPX file")
+        gps_track = load_gpx_track(gpx_path)
+        if not gps_track:
+            raise RuntimeError("No timestamped GPX track points found in GPX file")
 
-    video_start_dt = parse_iso(video_start_iso) if video_start_iso else gps_track[0]["timestamp"]
+        video_start_dt = parse_iso(video_start_iso) if video_start_iso else gps_track[0]["timestamp"]
 
-    # ----------------------------
-    # Extract frames
-    # ----------------------------
-    print(f"Extracting {FRAME_FPS_EXTRACT} fps frames...")
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(video_path),
-            "-an",
-            "-sn",
-            "-dn",
-            "-vf",
-            f"fps={FRAME_FPS_EXTRACT}",
-            str(frames_dir / "frame_%05d.jpg"),
-        ],
-        check=True,
-    )
+        # ----------------------------
+        # Extract frames
+        # ----------------------------
+        update_job_status("running", "extracting_frames", "Extracting frames from video")
+        print(f"Extracting {FRAME_FPS_EXTRACT} fps frames...")
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(video_path),
+                "-an",
+                "-sn",
+                "-dn",
+                "-vf",
+                f"fps={FRAME_FPS_EXTRACT}",
+                str(frames_dir / "frame_%05d.jpg"),
+            ],
+            check=True,
+        )
 
-    frame_files = sorted(frames_dir.glob("*.jpg"))
-    print(f"Extracted {len(frame_files)} frames")
-    if not frame_files:
-        raise RuntimeError("No frames extracted from video")
+        frame_files = sorted(frames_dir.glob("*.jpg"))
+        print(f"Extracted {len(frame_files)} frames")
+        if not frame_files:
+            raise RuntimeError("No frames extracted from video")
 
-    # ----------------------------
-    # Load model
-    # ----------------------------
-    print(f"Loading model from {MODEL_PATH}")
-    model = YOLO(MODEL_PATH)
+        # ----------------------------
+        # Load model
+        # ----------------------------
+        update_job_status("running", "loading_model", "Loading YOLO model")
+        print(f"Loading model from {MODEL_PATH}")
+        model = YOLO(MODEL_PATH)
 
-    # ----------------------------
-    # Run inference
-    # ----------------------------
-    print("Running inference...")
-    results = model.predict(
-        source=str(frames_dir),
-        save=False,
-        conf=MIN_CONFIDENCE,
-        verbose=True,
-    )
+        # ----------------------------
+        # Run inference
+        # ----------------------------
+        update_job_status("running", "running_inference", "Running inference")
+        print("Running inference...")
+        results = model.predict(
+            source=str(frames_dir),
+            save=False,
+            conf=MIN_CONFIDENCE,
+            verbose=True,
+        )
 
-    summary = []
-    db_rows = []
-    uploaded_overlay_count = 0
+        for frame_idx, r in enumerate(results):
+            if r.boxes is None or len(r.boxes) == 0:
+                continue
 
-    for i, r in enumerate(results):
-        frame_name = frame_files[i].name
-        frame_path = frame_files[i]
-        overlay_path = overlay_dir / frame_name
+            confs = [float(x.item()) for x in r.boxes.conf]
+            if confs:
+                min_seen = min(confs)
+                max_seen = max(confs)
+                print(f"Frame {frame_idx}: confidence range {min_seen:.4f} - {max_seen:.4f}")
 
-        names = r.names
-        boxes = r.boxes
-        masks = r.masks
+                if min_seen < MIN_CONFIDENCE:
+                    raise RuntimeError(
+                        f"Returned confidence {min_seen:.4f} below threshold {MIN_CONFIDENCE}"
+                    )
 
-        n = len(boxes) if boxes is not None else 0
-        if n == 0:
-            summary.append(
-                {
-                    "frame_index": i,
-                    "timestamp_seconds": i / FRAME_FPS_EXTRACT,
-                    "frame_file": frame_name,
-                    "kept": False,
-                    "reason": "no_detections",
-                    "detections": [],
+        summary = []
+        db_rows = []
+        uploaded_overlay_count = 0
+
+        update_job_status("running", "processing_detections", "Processing detections")
+
+        for i, r in enumerate(results):
+            frame_name = frame_files[i].name
+            frame_path = frame_files[i]
+            overlay_path = overlay_dir / frame_name
+
+            names = r.names
+            boxes = r.boxes
+            masks = r.masks
+
+            n = len(boxes) if boxes is not None else 0
+            if n == 0:
+                summary.append(
+                    {
+                        "frame_index": i,
+                        "timestamp_seconds": i / FRAME_FPS_EXTRACT,
+                        "frame_file": frame_name,
+                        "kept": False,
+                        "reason": "no_detections",
+                        "detections": [],
+                    }
+                )
+                continue
+
+            if masks is None or not hasattr(masks, "xy") or len(masks.xy) == 0:
+                summary.append(
+                    {
+                        "frame_index": i,
+                        "timestamp_seconds": i / FRAME_FPS_EXTRACT,
+                        "frame_file": frame_name,
+                        "kept": False,
+                        "reason": "no_masks_available",
+                        "detections": [],
+                    }
+                )
+                continue
+
+            all_detections = []
+            bike_lane_polys = []
+
+            for j in range(n):
+                cls_id = int(boxes.cls[j].item())
+                conf = float(boxes.conf[j].item())
+                class_name = names.get(cls_id, str(cls_id))
+
+                poly = None
+                polygon_coords = None
+
+                if j < len(masks.xy):
+                    polygon_coords = masks.xy[j].tolist()
+                    poly = polygon_from_mask(polygon_coords)
+
+                det = {
+                    "class_id": cls_id,
+                    "class_name": class_name,
+                    "confidence": conf,
+                    "polygon": polygon_coords,
+                    "shape": poly,
                 }
-            )
-            continue
+                all_detections.append(det)
 
-        if masks is None or not hasattr(masks, "xy") or len(masks.xy) == 0:
-            summary.append(
-                {
-                    "frame_index": i,
-                    "timestamp_seconds": i / FRAME_FPS_EXTRACT,
-                    "frame_file": frame_name,
-                    "kept": False,
-                    "reason": "no_masks_available",
-                    "detections": [],
-                }
-            )
-            continue
+                if should_treat_as_bike_lane(class_name) and poly is not None:
+                    bike_lane_polys.append(poly)
 
-        all_detections = []
-        bike_lane_polys = []
+            if not bike_lane_polys:
+                summary.append(
+                    {
+                        "frame_index": i,
+                        "timestamp_seconds": i / FRAME_FPS_EXTRACT,
+                        "frame_file": frame_name,
+                        "kept": False,
+                        "reason": "no_bike_lane_detected",
+                        "detections": [
+                            {
+                                "class_name": d["class_name"],
+                                "confidence": d["confidence"],
+                            }
+                            for d in all_detections
+                        ],
+                    }
+                )
+                continue
 
-        for j in range(n):
-            cls_id = int(boxes.cls[j].item())
-            conf = float(boxes.conf[j].item())
-            class_name = names.get(cls_id, str(cls_id))
+            bike_lane_union = unary_union(bike_lane_polys)
+            bike_lane_union = clean_geometry(bike_lane_union)
 
-            poly = None
-            polygon_coords = None
+            if bike_lane_union is None:
+                summary.append(
+                    {
+                        "frame_index": i,
+                        "timestamp_seconds": i / FRAME_FPS_EXTRACT,
+                        "frame_file": frame_name,
+                        "kept": False,
+                        "reason": "invalid_bike_lane_geometry",
+                        "detections": [],
+                    }
+                )
+                continue
 
-            if j < len(masks.xy):
-                polygon_coords = masks.xy[j].tolist()
-                poly = polygon_from_mask(polygon_coords)
+            bike_lane_for_overlap = shrink_geometry(bike_lane_union, BIKE_LANE_SHRINK_PIXELS)
+            if bike_lane_for_overlap is None:
+                bike_lane_for_overlap = bike_lane_union
 
-            det = {
-                "class_id": cls_id,
-                "class_name": class_name,
-                "confidence": conf,
-                "polygon": polygon_coords,
-                "shape": poly,
-            }
-            all_detections.append(det)
+            kept_hazards = []
 
-            if should_treat_as_bike_lane(class_name) and poly is not None:
-                bike_lane_polys.append(poly)
+            for det in all_detections:
+                if not should_treat_as_hazard(det["class_name"]):
+                    continue
+                if det["shape"] is None:
+                    continue
 
-        if not bike_lane_polys:
-            summary.append(
-                {
-                    "frame_index": i,
-                    "timestamp_seconds": i / FRAME_FPS_EXTRACT,
-                    "frame_file": frame_name,
-                    "kept": False,
-                    "reason": "no_bike_lane_detected",
-                    "detections": [
+                overlap = evaluate_substantial_overlap(
+                    hazard_poly=det["shape"],
+                    bike_lane_poly=bike_lane_for_overlap,
+                )
+
+                if overlap["is_overlap"]:
+                    kept_hazards.append(
                         {
-                            "class_name": d["class_name"],
-                            "confidence": d["confidence"],
+                            "class_name": det["class_name"],
+                            "confidence": det["confidence"],
+                            "polygon": det["polygon"],
+                            "shape": det["shape"],
+                            "intersection_area": overlap["intersection_area"],
+                            "hazard_overlap_ratio": overlap["hazard_overlap_ratio"],
+                            "bike_lane_overlap_ratio": overlap["bike_lane_overlap_ratio"],
+                            "centroid_in_lane": overlap["centroid_in_lane"],
                         }
-                        for d in all_detections
+                    )
+
+            if not kept_hazards:
+                summary.append(
+                    {
+                        "frame_index": i,
+                        "timestamp_seconds": i / FRAME_FPS_EXTRACT,
+                        "frame_file": frame_name,
+                        "kept": False,
+                        "reason": "no_substantial_hazard_overlap",
+                        "detections": [
+                            {
+                                "class_name": d["class_name"],
+                                "confidence": d["confidence"],
+                            }
+                            for d in all_detections
+                        ],
+                    }
+                )
+                continue
+
+            timestamp_seconds = i / FRAME_FPS_EXTRACT
+            event_dt = video_start_dt + timedelta(seconds=timestamp_seconds)
+            latitude, longitude, gpx_time = interpolate_gps_for_datetime(event_dt, gps_track)
+
+            overlay_written = render_overlay(
+                frame_path=frame_path,
+                bike_lane_geom=bike_lane_union,
+                kept_hazards=kept_hazards,
+                save_path=overlay_path,
+            )
+
+            if overlay_written and overlay_path.exists():
+                update_job_status("running", "uploading_overlays", f"Uploading overlay for {frame_name}")
+                overlay_object_path = f"{job_name}/{run_id}/{frame_name}"
+                image_url = upload_file_and_get_url(
+                    OVERLAYS_BUCKET,
+                    overlay_object_path,
+                    overlay_path,
+                    "image/jpeg",
+                )
+                uploaded_overlay_count += 1
+            else:
+                image_url = None
+
+            summary.append(
+                {
+                    "frame_index": i,
+                    "timestamp_seconds": timestamp_seconds,
+                    "frame_file": frame_name,
+                    "kept": True,
+                    "image_url": image_url,
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "gpx_time": gpx_time,
+                    "intersecting_hazards": [
+                        {
+                            "class_name": h["class_name"],
+                            "confidence": h["confidence"],
+                            "intersection_area": h["intersection_area"],
+                            "hazard_overlap_ratio": h["hazard_overlap_ratio"],
+                            "bike_lane_overlap_ratio": h["bike_lane_overlap_ratio"],
+                            "centroid_in_lane": h["centroid_in_lane"],
+                            "polygon": h["polygon"],
+                        }
+                        for h in kept_hazards
                     ],
                 }
             )
-            continue
 
-        bike_lane_union = unary_union(bike_lane_polys)
-        bike_lane_union = clean_geometry(bike_lane_union)
-
-        if bike_lane_union is None:
-            summary.append(
-                {
-                    "frame_index": i,
-                    "timestamp_seconds": i / FRAME_FPS_EXTRACT,
-                    "frame_file": frame_name,
-                    "kept": False,
-                    "reason": "invalid_bike_lane_geometry",
-                    "detections": [],
-                }
-            )
-            continue
-
-        bike_lane_for_overlap = shrink_geometry(bike_lane_union, BIKE_LANE_SHRINK_PIXELS)
-        if bike_lane_for_overlap is None:
-            bike_lane_for_overlap = bike_lane_union
-
-        kept_hazards = []
-
-        for det in all_detections:
-            if not should_treat_as_hazard(det["class_name"]):
-                continue
-            if det["shape"] is None:
-                continue
-
-            overlap = evaluate_substantial_overlap(
-                hazard_poly=det["shape"],
-                bike_lane_poly=bike_lane_for_overlap,
-            )
-
-            if overlap["is_overlap"]:
-                kept_hazards.append(
+            for hazard in kept_hazards:
+                db_rows.append(
                     {
-                        "class_name": det["class_name"],
-                        "confidence": det["confidence"],
-                        "polygon": det["polygon"],
-                        "shape": det["shape"],
-                        "intersection_area": overlap["intersection_area"],
-                        "hazard_overlap_ratio": overlap["hazard_overlap_ratio"],
-                        "bike_lane_overlap_ratio": overlap["bike_lane_overlap_ratio"],
-                        "centroid_in_lane": overlap["centroid_in_lane"],
+                        "job_name": job_name,
+                        "run_id": run_id,
+                        "frame_index": i,
+                        "timestamp_seconds": timestamp_seconds,
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "image_url": image_url,
+                        "confidence": hazard["confidence"],
+                        "class_name": hazard["class_name"],
+                        "bike_lane_overlap": hazard["hazard_overlap_ratio"],
+                        "intersection_area": hazard["intersection_area"],
+                        "bike_lane_overlap_ratio": hazard["bike_lane_overlap_ratio"],
+                        "centroid_in_lane": hazard["centroid_in_lane"],
+                        "gpx_time": gpx_time,
+                        "script_version": SCRIPT_VERSION,
                     }
                 )
 
-        if not kept_hazards:
-            summary.append(
-                {
-                    "frame_index": i,
-                    "timestamp_seconds": i / FRAME_FPS_EXTRACT,
-                    "frame_file": frame_name,
-                    "kept": False,
-                    "reason": "no_substantial_hazard_overlap",
-                    "detections": [
-                        {
-                            "class_name": d["class_name"],
-                            "confidence": d["confidence"],
-                        }
-                        for d in all_detections
-                    ],
-                }
+        summary_path = out_dir / "summary.json"
+        with open(summary_path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2)
+
+        update_job_status("running", "saving_summary", "Uploading summary and debug files")
+
+        summary_object_path = f"{job_name}/{run_id}/summary.json"
+        with open(summary_path, "rb") as f:
+            supabase.storage.from_(RESULTS_BUCKET).upload(
+                summary_object_path,
+                f,
+                {"content-type": "application/json", "x-upsert": "true"},
             )
-            continue
 
-        timestamp_seconds = i / FRAME_FPS_EXTRACT
-        event_dt = video_start_dt + timedelta(seconds=timestamp_seconds)
-        latitude, longitude, gpx_time = interpolate_gps_for_datetime(event_dt, gps_track)
+        summary_url = supabase.storage.from_(RESULTS_BUCKET).get_public_url(summary_object_path)
 
-        overlay_written = render_overlay(
-            frame_path=frame_path,
-            bike_lane_geom=bike_lane_union,
-            kept_hazards=kept_hazards,
-            save_path=overlay_path,
-        )
+        debug_payload = {
+            "script_version": SCRIPT_VERSION,
+            "job_name": job_name,
+            "run_id": run_id,
+            "min_confidence": MIN_CONFIDENCE,
+            "frame_fps_extract": FRAME_FPS_EXTRACT,
+            "model_path": MODEL_PATH,
+            "config": {
+                "bike_lane_shrink_pixels": BIKE_LANE_SHRINK_PIXELS,
+                "min_intersection_area": MIN_INTERSECTION_AREA,
+                "min_hazard_overlap_ratio": MIN_HAZARD_OVERLAP_RATIO,
+                "min_bike_lane_overlap_ratio": MIN_BIKE_LANE_OVERLAP_RATIO,
+                "require_centroid_in_lane": REQUIRE_CENTROID_IN_LANE,
+            },
+            "overlay_style": {
+                "bike_lane_color": BIKE_LANE_COLOR,
+                "hazard_color": HAZARD_COLOR,
+                "bike_lane_thickness": BIKE_LANE_THICKNESS,
+                "hazard_thickness": HAZARD_THICKNESS,
+            },
+        }
 
-        if overlay_written and overlay_path.exists():
-            overlay_object_path = f"{job_name}/{run_id}/{frame_name}"
-            image_url = upload_file_and_get_url(
-                OVERLAYS_BUCKET,
-                overlay_object_path,
-                overlay_path,
-                "image/jpeg",
+        debug_path = out_dir / "debug.json"
+        with open(debug_path, "w", encoding="utf-8") as f:
+            json.dump(debug_payload, f, indent=2)
+
+        debug_object_path = f"{job_name}/{run_id}/debug.json"
+        with open(debug_path, "rb") as f:
+            supabase.storage.from_(RESULTS_BUCKET).upload(
+                debug_object_path,
+                f,
+                {"content-type": "application/json", "x-upsert": "true"},
             )
-            uploaded_overlay_count += 1
-        else:
-            image_url = None
 
-        summary.append(
+        debug_url = supabase.storage.from_(RESULTS_BUCKET).get_public_url(debug_object_path)
+
+        inserted_count = 0
+        if UPSERT_TO_DB and db_rows:
+            update_job_status("running", "writing_database", "Writing detections to database")
+            chunk_size = 500
+            for start in range(0, len(db_rows), chunk_size):
+                chunk = db_rows[start:start + chunk_size]
+                supabase.table(DETECTIONS_TABLE).insert(chunk).execute()
+                inserted_count += len(chunk)
+
+        update_job_status(
+            "complete",
+            "done",
+            "Processing complete",
             {
-                "frame_index": i,
-                "timestamp_seconds": timestamp_seconds,
-                "frame_file": frame_name,
-                "kept": True,
-                "image_url": image_url,
-                "latitude": latitude,
-                "longitude": longitude,
-                "gpx_time": gpx_time,
-                "intersecting_hazards": [
-                    {
-                        "class_name": h["class_name"],
-                        "confidence": h["confidence"],
-                        "intersection_area": h["intersection_area"],
-                        "hazard_overlap_ratio": h["hazard_overlap_ratio"],
-                        "bike_lane_overlap_ratio": h["bike_lane_overlap_ratio"],
-                        "centroid_in_lane": h["centroid_in_lane"],
-                        "polygon": h["polygon"],
-                    }
-                    for h in kept_hazards
-                ],
-            }
+                "summary_url": summary_url,
+                "debug_url": debug_url,
+                "frames_extracted": len(frame_files),
+                "frames_kept": len([x for x in summary if x.get("kept")]),
+                "overlay_images_uploaded": uploaded_overlay_count,
+                "db_rows_inserted": inserted_count,
+            },
         )
 
-        for hazard in kept_hazards:
-            db_rows.append(
-                {
-                    "job_name": job_name,
-                    "run_id": run_id,
-                    "frame_index": i,
-                    "timestamp_seconds": timestamp_seconds,
-                    "latitude": latitude,
-                    "longitude": longitude,
-                    "image_url": image_url,
-                    "confidence": hazard["confidence"],
-                    "class_name": hazard["class_name"],
-                    "bike_lane_overlap": hazard["hazard_overlap_ratio"],
-                    "intersection_area": hazard["intersection_area"],
-                    "bike_lane_overlap_ratio": hazard["bike_lane_overlap_ratio"],
-                    "centroid_in_lane": hazard["centroid_in_lane"],
-                    "gpx_time": gpx_time,
-                    "script_version": SCRIPT_VERSION,
-                }
-            )
+        return {
+            "job_name": job_name,
+            "run_id": run_id,
+            "script_version": SCRIPT_VERSION,
+            "min_confidence": MIN_CONFIDENCE,
+            "frames_extracted": len(frame_files),
+            "frames_kept": len([x for x in summary if x.get("kept")]),
+            "overlay_images_uploaded": uploaded_overlay_count,
+            "db_rows_inserted": inserted_count,
+            "summary_url": summary_url,
+            "debug_url": debug_url,
+            "config": {
+                "bike_lane_shrink_pixels": BIKE_LANE_SHRINK_PIXELS,
+                "min_intersection_area": MIN_INTERSECTION_AREA,
+                "min_hazard_overlap_ratio": MIN_HAZARD_OVERLAP_RATIO,
+                "min_bike_lane_overlap_ratio": MIN_BIKE_LANE_OVERLAP_RATIO,
+                "require_centroid_in_lane": REQUIRE_CENTROID_IN_LANE,
+            },
+        }
 
-    summary_path = out_dir / "summary.json"
-    with open(summary_path, "w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=2)
-
-    summary_object_path = f"{job_name}/{run_id}/summary.json"
-    with open(summary_path, "rb") as f:
-        supabase.storage.from_(RESULTS_BUCKET).upload(
-            summary_object_path,
-            f,
-            {"content-type": "application/json", "x-upsert": "true"},
-        )
-
-    summary_url = supabase.storage.from_(RESULTS_BUCKET).get_public_url(summary_object_path)
-
-    inserted_count = 0
-    if UPSERT_TO_DB and db_rows:
-        chunk_size = 500
-        for start in range(0, len(db_rows), chunk_size):
-            chunk = db_rows[start:start + chunk_size]
-            supabase.table(DETECTIONS_TABLE).insert(chunk).execute()
-            inserted_count += len(chunk)
-
-    return {
-        "job_name": job_name,
-        "run_id": run_id,
-        "script_version": SCRIPT_VERSION,
-        "min_confidence": MIN_CONFIDENCE,
-        "frames_extracted": len(frame_files),
-        "frames_kept": len([x for x in summary if x.get("kept")]),
-        "overlay_images_uploaded": uploaded_overlay_count,
-        "db_rows_inserted": inserted_count,
-        "summary_url": summary_url,
-        "config": {
-            "bike_lane_shrink_pixels": BIKE_LANE_SHRINK_PIXELS,
-            "min_intersection_area": MIN_INTERSECTION_AREA,
-            "min_hazard_overlap_ratio": MIN_HAZARD_OVERLAP_RATIO,
-            "min_bike_lane_overlap_ratio": MIN_BIKE_LANE_OVERLAP_RATIO,
-            "require_centroid_in_lane": REQUIRE_CENTROID_IN_LANE,
-        },
-    }
+    except Exception as e:
+        update_job_status("failed", "error", str(e))
+        raise
 
 
 @app.local_entrypoint()
@@ -707,12 +819,14 @@ def main(
     video_url: str,
     gpx_url: str,
     job_name: str,
+    run_id: str = "",
     video_start_iso: str = "",
 ):
     result = run_video.remote(
         video_url=video_url,
         gpx_url=gpx_url,
         job_name=job_name,
+        run_id=run_id or uuid.uuid4().hex[:10],
         video_start_iso=video_start_iso or None,
     )
     print(result)
