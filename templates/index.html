@@ -5,42 +5,84 @@
   <title>Bike Lane Job Submitter</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; }
-    form { display: grid; gap: 14px; }
-    label { font-weight: 600; }
-    input, button { padding: 10px; font-size: 16px; width: 100%; box-sizing: border-box; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 20px; }
-    pre { background: #f6f6f6; padding: 12px; border-radius: 8px; overflow: auto; white-space: pre-wrap; }
-    small { color: #666; display: block; margin-top: 4px; }
-    code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 760px;
+      margin: 40px auto;
+      padding: 0 16px;
+    }
+    form {
+      display: grid;
+      gap: 14px;
+    }
+    label {
+      font-weight: 600;
+    }
+    input, button, select {
+      padding: 10px;
+      font-size: 16px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 20px;
+    }
+    pre {
+      background: #f6f6f6;
+      padding: 12px;
+      border-radius: 8px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+    small {
+      color: #666;
+      display: block;
+      margin-top: 4px;
+    }
+    code {
+      background: #f3f3f3;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .muted {
+      color: #666;
+    }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Submit Bike Lane Processing Job</h1>
 
-    <p>First upload your files manually to Supabase Storage, then submit the object paths here.</p>
-
-    <p>Example:</p>
-    <pre>source-videos / richmond-ride-001 / input.mp4
-source-gpx    / richmond-ride-001 / track.gpx</pre>
+    <p>Select a video and GPX file already uploaded to Supabase Storage.</p>
 
     <form id="jobForm">
       <div>
         <label for="job_name">Job name</label><br>
         <input type="text" id="job_name" name="job_name" placeholder="richmond-ride-001" required>
+        <small>You can type your own, or use the folder name auto-filled from your selection.</small>
       </div>
 
       <div>
-        <label for="video_object_path">Video object path</label><br>
-        <input type="text" id="video_object_path" name="video_object_path" placeholder="richmond-ride-001/input.mp4" required>
-        <small>This should exist in the <code>source-videos</code> bucket.</small>
+        <label for="video_object_path">Video file</label><br>
+        <select id="video_object_path" name="video_object_path" required>
+          <option value="">Loading videos...</option>
+        </select>
+        <small>This comes from the <code>source-videos</code> bucket.</small>
       </div>
 
       <div>
-        <label for="gpx_object_path">GPX object path</label><br>
-        <input type="text" id="gpx_object_path" name="gpx_object_path" placeholder="richmond-ride-001/track.gpx" required>
-        <small>This should exist in the <code>source-gpx</code> bucket.</small>
+        <label for="gpx_object_path">GPX file</label><br>
+        <select id="gpx_object_path" name="gpx_object_path" required>
+          <option value="">Loading GPX files...</option>
+        </select>
+        <small>This comes from the <code>source-gpx</code> bucket.</small>
       </div>
 
       <div>
@@ -49,6 +91,7 @@ source-gpx    / richmond-ride-001 / track.gpx</pre>
         <small>Leave blank if the video and GPX started at the same time.</small>
       </div>
 
+      <button type="button" id="refreshFilesBtn">Refresh file lists</button>
       <button type="submit">Submit Processing Job</button>
     </form>
 
@@ -61,6 +104,98 @@ source-gpx    / richmond-ride-001 / track.gpx</pre>
   <script>
     const form = document.getElementById("jobForm");
     const result = document.getElementById("result");
+    const videoSelect = document.getElementById("video_object_path");
+    const gpxSelect = document.getElementById("gpx_object_path");
+    const jobNameInput = document.getElementById("job_name");
+    const refreshFilesBtn = document.getElementById("refreshFilesBtn");
+
+    function setSelectOptions(selectEl, items, placeholder) {
+      selectEl.innerHTML = "";
+
+      const firstOption = document.createElement("option");
+      firstOption.value = "";
+      firstOption.textContent = placeholder;
+      selectEl.appendChild(firstOption);
+
+      for (const item of items) {
+        const opt = document.createElement("option");
+        opt.value = item.path;
+        opt.textContent = item.label;
+        opt.dataset.folder = item.folder || "";
+        selectEl.appendChild(opt);
+      }
+    }
+
+    async function loadFiles() {
+      result.textContent = "Loading available files...";
+
+      try {
+        const res = await fetch("/list-storage-files");
+        const text = await res.text();
+
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = {
+            error: "Server returned non-JSON response",
+            status: res.status,
+            body: text.slice(0, 1000)
+          };
+        }
+
+        if (!res.ok || parsed.error) {
+          result.textContent = JSON.stringify(parsed, null, 2);
+          setSelectOptions(videoSelect, [], "Unable to load videos");
+          setSelectOptions(gpxSelect, [], "Unable to load GPX files");
+          return;
+        }
+
+        setSelectOptions(
+          videoSelect,
+          parsed.videos || [],
+          (parsed.videos || []).length ? "Choose a video file" : "No video files found"
+        );
+
+        setSelectOptions(
+          gpxSelect,
+          parsed.gpx || [],
+          (parsed.gpx || []).length ? "Choose a GPX file" : "No GPX files found"
+        );
+
+        result.textContent = JSON.stringify({
+          message: "File lists loaded",
+          video_count: (parsed.videos || []).length,
+          gpx_count: (parsed.gpx || []).length
+        }, null, 2);
+      } catch (err) {
+        result.textContent = JSON.stringify({ error: err.message }, null, 2);
+        setSelectOptions(videoSelect, [], "Unable to load videos");
+        setSelectOptions(gpxSelect, [], "Unable to load GPX files");
+      }
+    }
+
+    function maybeAutoFillJobName() {
+      const selectedVideo = videoSelect.options[videoSelect.selectedIndex];
+      const selectedGpx = gpxSelect.options[gpxSelect.selectedIndex];
+
+      const videoFolder = selectedVideo?.dataset?.folder || "";
+      const gpxFolder = selectedGpx?.dataset?.folder || "";
+
+      if (!jobNameInput.value.trim()) {
+        if (videoFolder && gpxFolder && videoFolder === gpxFolder) {
+          jobNameInput.value = videoFolder;
+        } else if (videoFolder) {
+          jobNameInput.value = videoFolder;
+        } else if (gpxFolder) {
+          jobNameInput.value = gpxFolder;
+        }
+      }
+    }
+
+    videoSelect.addEventListener("change", maybeAutoFillJobName);
+    gpxSelect.addEventListener("change", maybeAutoFillJobName);
+    refreshFilesBtn.addEventListener("click", loadFiles);
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -94,6 +229,8 @@ source-gpx    / richmond-ride-001 / track.gpx</pre>
         }, null, 2);
       }
     });
+
+    loadFiles();
   </script>
 </body>
 </html>
