@@ -108,13 +108,14 @@ def run_video(
         if extra:
             payload.update(extra)
     
-        try:
-            supabase.table(JOB_RUNS_TABLE).upsert(
-                payload,
-                on_conflict="job_name,run_id"
-            ).execute()
-        except Exception as e:
-            print(f"Warning: failed to update job status: {e}")
+        print(f"STATUS UPDATE ATTEMPT -> {payload}")
+    
+        res = supabase.table(JOB_RUNS_TABLE).upsert(
+            payload,
+            on_conflict="job_name,run_id"
+        ).execute()
+
+    print(f"STATUS UPDATE SUCCESS -> {res.data}")
 
     print(f"SCRIPT_VERSION={SCRIPT_VERSION}")
     print(f"JOB_NAME={job_name}")
