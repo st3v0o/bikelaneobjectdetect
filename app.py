@@ -1,6 +1,7 @@
 import os
 import uuid
 import traceback
+from typing import List, Dict, Any
 
 from flask import Flask, render_template, request, jsonify
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -23,6 +24,9 @@ MODAL_FUNCTION_NAME = os.getenv("MODAL_FUNCTION_NAME", "run_video")
 
 SIGNED_URL_TTL_SECONDS = int(os.getenv("SIGNED_URL_TTL_SECONDS", "3600"))
 
+VIDEO_EXTENSIONS = (".mp4", ".mov", ".m4v", ".avi", ".mpeg", ".mpg")
+GPX_EXTENSIONS = (".gpx",)
+
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 
@@ -37,13 +41,83 @@ def create_signed_download_url(bucket: str, object_path: str) -> str:
     return signed_url
 
 
+def list_bucket_files_one_level(bucket_name: str) -> List[str]:
+    """
+    Lists files assuming a structure like:
+      bucket/
+        job-name/
+          file.ext
+
+    Returns paths relative to bucket root, e.g.:
+      richmond-ride-001/input.mp4
+      richmond-ride-001/track.gpx
+    """
+    results: List[str] = []
+
+    top_level = supabase.storage.from_(bucket_name).list(
+        path="",
+        options={"limit": 1000, "offset": 0},
+    )
+
+    if not top_level:
+        return results
+
+    for folder in top_level:
+        folder_name = folder.get("name")
+        if not folder_name:
+            continue
+
+        children = supabase.storage.from_(bucket_name).list(
+            path=folder_name,
+            options={"limit": 1000, "offset": 0},
+        )
+
+        if not children:
+            continue
+
+        for child in children:
+            child_name = child.get("name")
+            if not child_name:
+                continue
+
+            full_path = f"{folder_name}/{child_name}"
+            results.append(full_path)
+
+    return sorted(results)
+
+
+def filter_paths_by_extensions(paths: List[str], allowed_extensions: tuple) -> List[str]:
+    return [p for p in paths if p.lower().endswith(allowed_extensions)]
+
+
+def build_file_options(paths: List[str]) -> List[Dict[str, Any]]:
+    """
+    Converts raw storage paths into frontend-friendly dropdown options.
+    """
+    options: List[Dict[str, Any]] = []
+
+    for path in paths:
+        parts = path.split("/")
+        folder = parts[0] if len(parts) > 1 else ""
+        filename = parts[-1]
+
+        label = f"{folder} / {filename}" if folder else filename
+
+        options.append(
+            {
+                "path": path,
+                "label": label,
+                "folder": folder,
+                "filename": filename,
+            }
+        )
+
+    return options
+
+
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_too_large(e):
-    return jsonify(
-        {
-            "error": "Upload too large",
-        }
-    ), 413
+    return jsonify({"error": "Upload too large"}), 413
 
 
 @app.errorhandler(Exception)
@@ -77,6 +151,43 @@ def map_page():
     )
 
 
+@app.get("/list-storage-files")
+def list_storage_files():
+    """
+    Returns available files from the source video and GPX buckets
+    so the frontend can populate dropdowns.
+    """
+    app.logger.info("Entered /list-storage-files route")
+
+    try:
+        video_paths = list_bucket_files_one_level(SOURCE_VIDEO_BUCKET)
+        gpx_paths = list_bucket_files_one_level(SOURCE_GPX_BUCKET)
+
+        video_paths = filter_paths_by_extensions(video_paths, VIDEO_EXTENSIONS)
+        gpx_paths = filter_paths_by_extensions(gpx_paths, GPX_EXTENSIONS)
+
+        return jsonify(
+            {
+                "videos": build_file_options(video_paths),
+                "gpx": build_file_options(gpx_paths),
+                "video_bucket": SOURCE_VIDEO_BUCKET,
+                "gpx_bucket": SOURCE_GPX_BUCKET,
+                "video_count": len(video_paths),
+                "gpx_count": len(gpx_paths),
+            }
+        )
+
+    except Exception as e:
+        app.logger.exception("Exception inside /list-storage-files")
+        return jsonify(
+            {
+                "error": str(e),
+                "type": e.__class__.__name__,
+                "traceback": traceback.format_exc(),
+            }
+        ), 500
+
+
 @app.post("/submit-job")
 def submit_job():
     app.logger.info("Entered /submit-job route")
@@ -87,7 +198,11 @@ def submit_job():
     video_start_iso = (request.form.get("video_start_iso") or "").strip()
 
     if not job_name:
-        job_name = f"job-{uuid.uuid4().hex[:12]}"
+        # Prefer deriving from the selected video folder if possible
+        if "/" in video_object_path:
+            job_name = video_object_path.split("/", 1)[0]
+        else:
+            job_name = f"job-{uuid.uuid4().hex[:12]}"
 
     if not video_object_path:
         return jsonify({"error": "Missing video_object_path"}), 400
