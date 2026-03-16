@@ -51,7 +51,7 @@ def run_video(
     from supabase import create_client
     from ultralytics import YOLO
 
-    SCRIPT_VERSION = "debug-conf06-status-v1"
+    SCRIPT_VERSION = "debug-conf06-status-v2"
 
     # ----------------------------
     # Config
@@ -95,8 +95,6 @@ def run_video(
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     supabase = create_client(supabase_url, supabase_key)
 
-    update_job_status("running", "starting", "Job started")
-
     def update_job_status(status: str, step: str, message: str = "", extra: dict | None = None):
         payload = {
             "job_name": job_name,
@@ -109,15 +107,15 @@ def run_video(
         }
         if extra:
             payload.update(extra)
-    
+
         print(f"STATUS UPDATE ATTEMPT -> {payload}")
-    
+
         res = supabase.table(JOB_RUNS_TABLE).upsert(
             payload,
             on_conflict="job_name,run_id"
         ).execute()
 
-    print(f"STATUS UPDATE SUCCESS -> {res.data}")
+        print(f"STATUS UPDATE SUCCESS -> {res.data}")
 
     print(f"SCRIPT_VERSION={SCRIPT_VERSION}")
     print(f"JOB_NAME={job_name}")
@@ -420,9 +418,6 @@ def run_video(
         return supabase.storage.from_(bucket).get_public_url(object_path)
 
     try:
-        # ----------------------------
-        # Download inputs
-        # ----------------------------
         update_job_status("running", "downloading_inputs", "Downloading video and GPX")
         print(f"Downloading video from: {video_url}")
         urlretrieve(video_url, video_path)
@@ -436,9 +431,6 @@ def run_video(
 
         video_start_dt = parse_iso(video_start_iso) if video_start_iso else gps_track[0]["timestamp"]
 
-        # ----------------------------
-        # Extract frames
-        # ----------------------------
         update_job_status("running", "extracting_frames", "Extracting frames from video")
         print(f"Extracting {FRAME_FPS_EXTRACT} fps frames...")
         subprocess.run(
@@ -462,16 +454,10 @@ def run_video(
         if not frame_files:
             raise RuntimeError("No frames extracted from video")
 
-        # ----------------------------
-        # Load model
-        # ----------------------------
         update_job_status("running", "loading_model", "Loading YOLO model")
         print(f"Loading model from {MODEL_PATH}")
         model = YOLO(MODEL_PATH)
 
-        # ----------------------------
-        # Run inference
-        # ----------------------------
         update_job_status("running", "running_inference", "Running inference")
         print("Running inference...")
         results = model.predict(
