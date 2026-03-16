@@ -64,47 +64,26 @@ def run_video(
     FRAME_FPS_EXTRACT = 1
     MIN_CONFIDENCE = 0.25
 
-    # Shrink the bike lane inward a little so tiny edge touches don't count.
-    BIKE_LANE_SHRINK_PIXELS = 6
-
-    # Generic thresholds for non-vehicle hazards.
-    DEFAULT_MIN_INTERSECTION_AREA = 1500.0
-    DEFAULT_MIN_HAZARD_OVERLAP_RATIO = 0.12  # fraction of hazard area inside lane
-    DEFAULT_MIN_BIKE_LANE_OVERLAP_RATIO = 0.01  # fraction of lane area covered
-    DEFAULT_REQUIRE_CENTROID_IN_LANE = False
-
-    # Stricter rule for vehicles so a tire edge doesn't count.
-    CLASS_RULES = {
-        "vehicle": {
-            "min_intersection_area": 2500.0,
-            "min_hazard_overlap_ratio": 0.20,
-            "min_bike_lane_overlap_ratio": 0.015,
-            "require_centroid_in_lane": True,
-        },
-        "leaves": {
-            "min_intersection_area": 1200.0,
-            "min_hazard_overlap_ratio": 0.10,
-            "min_bike_lane_overlap_ratio": 0.005,
-            "require_centroid_in_lane": False,
-        },
-        "sediment": {
-            "min_intersection_area": 1200.0,
-            "min_hazard_overlap_ratio": 0.10,
-            "min_bike_lane_overlap_ratio": 0.005,
-            "require_centroid_in_lane": False,
-        },
-        "advance warning sign": {
-            "min_intersection_area": 1200.0,
-            "min_hazard_overlap_ratio": 0.10,
-            "min_bike_lane_overlap_ratio": 0.005,
-            "require_centroid_in_lane": False,
-        },
-    }
+    # Overlap tuning:
+    # Increase shrink + thresholds to make detections less sensitive.
+    BIKE_LANE_SHRINK_PIXELS = 8
+    MIN_INTERSECTION_AREA = 3000.0
+    MIN_HAZARD_OVERLAP_RATIO = 0.25
+    MIN_BIKE_LANE_OVERLAP_RATIO = 0.015
+    REQUIRE_CENTROID_IN_LANE = False
 
     UPSERT_TO_DB = True
     DETECTIONS_TABLE = "detections"
     OVERLAYS_BUCKET = "overlays"
     RESULTS_BUCKET = "results"
+
+    MODEL_PATH = "/root/models/models/best.pt"
+
+    # Outline styling (OpenCV uses BGR)
+    BIKE_LANE_COLOR = (0, 255, 0)   # green
+    HAZARD_COLOR = (0, 0, 255)      # red
+    BIKE_LANE_THICKNESS = 3
+    HAZARD_THICKNESS = 4
 
     # ----------------------------
     # Supabase
@@ -219,7 +198,7 @@ def run_video(
         except Exception:
             return None
 
-    def clean_polygon(geom):
+    def clean_geometry(geom):
         if geom is None:
             return None
         try:
@@ -232,33 +211,21 @@ def run_video(
             return None
 
     def shrink_geometry(geom, pixels: float):
-        geom = clean_polygon(geom)
+        geom = clean_geometry(geom)
         if geom is None:
             return None
         if pixels == 0:
             return geom
         try:
             shrunk = geom.buffer(-pixels)
-            shrunk = clean_polygon(shrunk)
+            shrunk = clean_geometry(shrunk)
             return shrunk
         except Exception:
             return geom
 
-    def get_rule_for_class(class_name: str):
-        class_name = class_name.lower().strip()
-        return CLASS_RULES.get(
-            class_name,
-            {
-                "min_intersection_area": DEFAULT_MIN_INTERSECTION_AREA,
-                "min_hazard_overlap_ratio": DEFAULT_MIN_HAZARD_OVERLAP_RATIO,
-                "min_bike_lane_overlap_ratio": DEFAULT_MIN_BIKE_LANE_OVERLAP_RATIO,
-                "require_centroid_in_lane": DEFAULT_REQUIRE_CENTROID_IN_LANE,
-            },
-        )
-
-    def evaluate_substantial_overlap(hazard_poly, bike_lane_poly, class_name: str):
-        hazard_poly = clean_polygon(hazard_poly)
-        bike_lane_poly = clean_polygon(bike_lane_poly)
+    def evaluate_substantial_overlap(hazard_poly, bike_lane_poly):
+        hazard_poly = clean_geometry(hazard_poly)
+        bike_lane_poly = clean_geometry(bike_lane_poly)
 
         if hazard_poly is None or bike_lane_poly is None:
             return {
@@ -279,7 +246,7 @@ def run_video(
             }
 
         inter = hazard_poly.intersection(bike_lane_poly)
-        inter = clean_polygon(inter)
+        inter = clean_geometry(inter)
 
         if inter is None:
             return {
@@ -300,15 +267,13 @@ def run_video(
         except Exception:
             centroid_in_lane = False
 
-        rule = get_rule_for_class(class_name)
-
         passes = (
-            intersection_area >= rule["min_intersection_area"]
-            and hazard_overlap_ratio >= rule["min_hazard_overlap_ratio"]
-            and bike_lane_overlap_ratio >= rule["min_bike_lane_overlap_ratio"]
+            intersection_area >= MIN_INTERSECTION_AREA
+            and hazard_overlap_ratio >= MIN_HAZARD_OVERLAP_RATIO
+            and bike_lane_overlap_ratio >= MIN_BIKE_LANE_OVERLAP_RATIO
         )
 
-        if rule["require_centroid_in_lane"]:
+        if REQUIRE_CENTROID_IN_LANE:
             passes = passes and centroid_in_lane
 
         return {
@@ -319,79 +284,102 @@ def run_video(
             "centroid_in_lane": centroid_in_lane,
         }
 
-    def shapely_to_cv_polylines(geom):
+    def geometry_to_polylines(geom):
         """
-        Returns a list of np.int32 arrays shaped for cv2.polylines.
-        Supports Polygon and MultiPolygon.
+        Convert Polygon / MultiPolygon to a list of OpenCV polyline arrays.
         """
+        geom = clean_geometry(geom)
+        if geom is None:
+            return []
+
         lines = []
 
-        geom = clean_polygon(geom)
-        if geom is None:
-            return lines
-
-        def exterior_to_pts(poly):
+        def polygon_exterior_to_pts(poly):
             coords = np.array(poly.exterior.coords, dtype=np.int32)
-            if len(coords) >= 2:
-                return coords.reshape((-1, 1, 2))
-            return None
+            if len(coords) < 2:
+                return None
+            return coords.reshape((-1, 1, 2))
 
         if isinstance(geom, Polygon):
-            pts = exterior_to_pts(geom)
+            pts = polygon_exterior_to_pts(geom)
             if pts is not None:
                 lines.append(pts)
+
         elif isinstance(geom, MultiPolygon):
             for poly in geom.geoms:
-                pts = exterior_to_pts(poly)
+                pts = polygon_exterior_to_pts(poly)
                 if pts is not None:
                     lines.append(pts)
 
         return lines
 
-    def draw_outline(image, geom, color, thickness=2):
-        for pts in shapely_to_cv_polylines(geom):
-            cv2.polylines(image, [pts], isClosed=True, color=color, thickness=thickness, lineType=cv2.LINE_AA)
+    def draw_outline(image, geom, color, thickness):
+        for pts in geometry_to_polylines(geom):
+            cv2.polylines(
+                image,
+                [pts],
+                isClosed=True,
+                color=color,
+                thickness=thickness,
+                lineType=cv2.LINE_AA,
+            )
 
     def draw_label(image, geom, text, color):
-        geom = clean_polygon(geom)
+        geom = clean_geometry(geom)
         if geom is None:
             return
         try:
-            x = int(geom.representative_point().x)
-            y = int(geom.representative_point().y)
+            rp = geom.representative_point()
+            x = int(rp.x)
+            y = int(rp.y)
             cv2.putText(
                 image,
                 text,
-                (x, max(20, y - 6)),
+                (x, max(20, y - 8)),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
+                0.65,
                 color,
                 2,
                 cv2.LINE_AA,
             )
         except Exception:
-            return
+            pass
 
-    def render_overlay(frame_path: Path, bike_lane_geom, kept_hazards, save_path: Path):
+    def render_overlay(frame_path: Path, bike_lane_geom, kept_hazards, save_path: Path) -> bool:
         image = cv2.imread(str(frame_path))
         if image is None:
             return False
 
-        # Bike lane outline in green
-        draw_outline(image, bike_lane_geom, color=(0, 255, 0), thickness=2)
+        # Draw bike lane outlines only
+        draw_outline(
+            image=image,
+            geom=bike_lane_geom,
+            color=BIKE_LANE_COLOR,
+            thickness=BIKE_LANE_THICKNESS,
+        )
 
-        # Hazard outlines in red, labels in red
+        # Draw hazard outlines only
         for hazard in kept_hazards:
-            draw_outline(image, hazard["shape"], color=(0, 0, 255), thickness=3)
+            draw_outline(
+                image=image,
+                geom=hazard["shape"],
+                color=HAZARD_COLOR,
+                thickness=HAZARD_THICKNESS,
+            )
+
             label = (
                 f'{hazard["class_name"]} '
                 f'ov={hazard["hazard_overlap_ratio"]:.2f} '
                 f'area={int(hazard["intersection_area"])}'
             )
-            draw_label(image, hazard["shape"], label, color=(0, 0, 255))
+            draw_label(
+                image=image,
+                geom=hazard["shape"],
+                text=label,
+                color=HAZARD_COLOR,
+            )
 
-        ok = cv2.imwrite(str(save_path), image)
-        return bool(ok)
+        return bool(cv2.imwrite(str(save_path), image))
 
     def upload_file_and_get_url(bucket: str, object_path: str, local_path: Path, content_type: str) -> str:
         with open(local_path, "rb") as f:
@@ -445,7 +433,8 @@ def run_video(
     # ----------------------------
     # Load model
     # ----------------------------
-    model = YOLO("/root/models/models/best.pt")
+    print(f"Loading model from {MODEL_PATH}")
+    model = YOLO(MODEL_PATH)
 
     # ----------------------------
     # Run inference
@@ -453,7 +442,7 @@ def run_video(
     print("Running inference...")
     results = model.predict(
         source=str(frames_dir),
-        save=False,   # important: do not use default boxed overlays
+        save=False,   # critical: do NOT let ultralytics write boxed/masked images
         conf=MIN_CONFIDENCE,
         verbose=True,
     )
@@ -545,7 +534,8 @@ def run_video(
             continue
 
         bike_lane_union = unary_union(bike_lane_polys)
-        bike_lane_union = clean_polygon(bike_lane_union)
+        bike_lane_union = clean_geometry(bike_lane_union)
+
         if bike_lane_union is None:
             summary.append(
                 {
@@ -559,7 +549,7 @@ def run_video(
             )
             continue
 
-        # Shrink bike lane so tiny boundary touches do not count.
+        # Use shrunken bike lane for overlap testing only
         bike_lane_for_overlap = shrink_geometry(bike_lane_union, BIKE_LANE_SHRINK_PIXELS)
         if bike_lane_for_overlap is None:
             bike_lane_for_overlap = bike_lane_union
@@ -575,7 +565,6 @@ def run_video(
             overlap = evaluate_substantial_overlap(
                 hazard_poly=det["shape"],
                 bike_lane_poly=bike_lane_for_overlap,
-                class_name=det["class_name"],
             )
 
             if overlap["is_overlap"]:
@@ -615,9 +604,10 @@ def run_video(
         event_dt = video_start_dt + timedelta(seconds=timestamp_seconds)
         latitude, longitude, gpx_time = interpolate_gps_for_datetime(event_dt, gps_track)
 
+        # Critical: upload only the custom overlay we rendered ourselves
         overlay_written = render_overlay(
             frame_path=frame_path,
-            bike_lane_geom=bike_lane_union,   # draw full lane outline
+            bike_lane_geom=bike_lane_union,
             kept_hazards=kept_hazards,
             save_path=overlay_path,
         )
@@ -702,7 +692,7 @@ def run_video(
     if UPSERT_TO_DB and db_rows:
         chunk_size = 500
         for start in range(0, len(db_rows), chunk_size):
-            chunk = db_rows[start : start + chunk_size]
+            chunk = db_rows[start:start + chunk_size]
             supabase.table(DETECTIONS_TABLE).insert(chunk).execute()
             inserted_count += len(chunk)
 
@@ -715,13 +705,10 @@ def run_video(
         "summary_url": summary_url,
         "config": {
             "bike_lane_shrink_pixels": BIKE_LANE_SHRINK_PIXELS,
-            "vehicle_rule": CLASS_RULES["vehicle"],
-            "default_rule": {
-                "min_intersection_area": DEFAULT_MIN_INTERSECTION_AREA,
-                "min_hazard_overlap_ratio": DEFAULT_MIN_HAZARD_OVERLAP_RATIO,
-                "min_bike_lane_overlap_ratio": DEFAULT_MIN_BIKE_LANE_OVERLAP_RATIO,
-                "require_centroid_in_lane": DEFAULT_REQUIRE_CENTROID_IN_LANE,
-            },
+            "min_intersection_area": MIN_INTERSECTION_AREA,
+            "min_hazard_overlap_ratio": MIN_HAZARD_OVERLAP_RATIO,
+            "min_bike_lane_overlap_ratio": MIN_BIKE_LANE_OVERLAP_RATIO,
+            "require_centroid_in_lane": REQUIRE_CENTROID_IN_LANE,
         },
     }
 
