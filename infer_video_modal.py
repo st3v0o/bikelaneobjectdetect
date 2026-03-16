@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import subprocess
+import uuid
 import xml.etree.ElementTree as ET
 from bisect import bisect_left
 from datetime import datetime, timedelta
@@ -49,6 +50,8 @@ def run_video(
     from supabase import create_client
     from ultralytics import YOLO
 
+    SCRIPT_VERSION = "outline-only-v5-conf06-unique-run"
+
     # ----------------------------
     # Config
     # ----------------------------
@@ -64,8 +67,6 @@ def run_video(
     FRAME_FPS_EXTRACT = 1
     MIN_CONFIDENCE = 0.6
 
-    # Overlap tuning:
-    # Increase shrink + thresholds to make detections less sensitive.
     BIKE_LANE_SHRINK_PIXELS = 8
     MIN_INTERSECTION_AREA = 3000.0
     MIN_HAZARD_OVERLAP_RATIO = 0.25
@@ -79,11 +80,13 @@ def run_video(
 
     MODEL_PATH = "/root/models/models/best.pt"
 
-    # Outline styling (OpenCV uses BGR)
-    BIKE_LANE_COLOR = (0, 255, 0)   # green
-    HAZARD_COLOR = (0, 0, 255)      # red
-    BIKE_LANE_THICKNESS = 3
-    HAZARD_THICKNESS = 4
+    # Make this visually unmistakable while debugging
+    BIKE_LANE_COLOR = (255, 255, 255)  # white
+    HAZARD_COLOR = (0, 255, 255)       # yellow
+    BIKE_LANE_THICKNESS = 8
+    HAZARD_THICKNESS = 10
+
+    run_id = uuid.uuid4().hex[:10]
 
     # ----------------------------
     # Supabase
@@ -91,6 +94,21 @@ def run_video(
     supabase_url = os.environ["SUPABASE_URL"]
     supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     supabase = create_client(supabase_url, supabase_key)
+
+    print(f"SCRIPT_VERSION={SCRIPT_VERSION}")
+    print(f"MIN_CONFIDENCE={MIN_CONFIDENCE}")
+    print(f"JOB_NAME={job_name}")
+    print(f"RUN_ID={run_id}")
+
+    assert abs(MIN_CONFIDENCE - 0.6) < 1e-9, f"Expected 0.6, got {MIN_CONFIDENCE}"
+
+    # Delete old DB rows for this job so you don't mix runs
+    if UPSERT_TO_DB:
+        try:
+            supabase.table(DETECTIONS_TABLE).delete().eq("job_name", job_name).execute()
+            print(f"Deleted old rows for job_name={job_name}")
+        except Exception as e:
+            print(f"Warning: failed deleting old rows for {job_name}: {e}")
 
     # ----------------------------
     # Working dirs
@@ -285,9 +303,6 @@ def run_video(
         }
 
     def geometry_to_polylines(geom):
-        """
-        Convert Polygon / MultiPolygon to a list of OpenCV polyline arrays.
-        """
         geom = clean_geometry(geom)
         if geom is None:
             return []
@@ -304,7 +319,6 @@ def run_video(
             pts = polygon_exterior_to_pts(geom)
             if pts is not None:
                 lines.append(pts)
-
         elif isinstance(geom, MultiPolygon):
             for poly in geom.geoms:
                 pts = polygon_exterior_to_pts(poly)
@@ -337,7 +351,7 @@ def run_video(
                 text,
                 (x, max(20, y - 8)),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.65,
+                0.75,
                 color,
                 2,
                 cv2.LINE_AA,
@@ -350,34 +364,12 @@ def run_video(
         if image is None:
             return False
 
-        # Draw bike lane outlines only
-        draw_outline(
-            image=image,
-            geom=bike_lane_geom,
-            color=BIKE_LANE_COLOR,
-            thickness=BIKE_LANE_THICKNESS,
-        )
+        draw_outline(image, bike_lane_geom, BIKE_LANE_COLOR, BIKE_LANE_THICKNESS)
 
-        # Draw hazard outlines only
         for hazard in kept_hazards:
-            draw_outline(
-                image=image,
-                geom=hazard["shape"],
-                color=HAZARD_COLOR,
-                thickness=HAZARD_THICKNESS,
-            )
-
-            label = (
-                f'{hazard["class_name"]} '
-                f'ov={hazard["hazard_overlap_ratio"]:.2f} '
-                f'area={int(hazard["intersection_area"])}'
-            )
-            draw_label(
-                image=image,
-                geom=hazard["shape"],
-                text=label,
-                color=HAZARD_COLOR,
-            )
+            draw_outline(image, hazard["shape"], HAZARD_COLOR, HAZARD_THICKNESS)
+            label = f'{hazard["class_name"]} conf={hazard["confidence"]:.2f}'
+            draw_label(image, hazard["shape"], label, HAZARD_COLOR)
 
         return bool(cv2.imwrite(str(save_path), image))
 
@@ -442,7 +434,7 @@ def run_video(
     print("Running inference...")
     results = model.predict(
         source=str(frames_dir),
-        save=False,   # critical: do NOT let ultralytics write boxed/masked images
+        save=False,
         conf=MIN_CONFIDENCE,
         verbose=True,
     )
@@ -549,7 +541,6 @@ def run_video(
             )
             continue
 
-        # Use shrunken bike lane for overlap testing only
         bike_lane_for_overlap = shrink_geometry(bike_lane_union, BIKE_LANE_SHRINK_PIXELS)
         if bike_lane_for_overlap is None:
             bike_lane_for_overlap = bike_lane_union
@@ -604,7 +595,6 @@ def run_video(
         event_dt = video_start_dt + timedelta(seconds=timestamp_seconds)
         latitude, longitude, gpx_time = interpolate_gps_for_datetime(event_dt, gps_track)
 
-        # Critical: upload only the custom overlay we rendered ourselves
         overlay_written = render_overlay(
             frame_path=frame_path,
             bike_lane_geom=bike_lane_union,
@@ -613,7 +603,7 @@ def run_video(
         )
 
         if overlay_written and overlay_path.exists():
-            overlay_object_path = f"{job_name}/{frame_name}"
+            overlay_object_path = f"{job_name}/{run_id}/{frame_name}"
             image_url = upload_file_and_get_url(
                 OVERLAYS_BUCKET,
                 overlay_object_path,
@@ -653,6 +643,7 @@ def run_video(
             db_rows.append(
                 {
                     "job_name": job_name,
+                    "run_id": run_id,
                     "frame_index": i,
                     "timestamp_seconds": timestamp_seconds,
                     "latitude": latitude,
@@ -665,17 +656,15 @@ def run_video(
                     "bike_lane_overlap_ratio": hazard["bike_lane_overlap_ratio"],
                     "centroid_in_lane": hazard["centroid_in_lane"],
                     "gpx_time": gpx_time,
+                    "script_version": SCRIPT_VERSION,
                 }
             )
 
-    # ----------------------------
-    # Upload summary.json
-    # ----------------------------
     summary_path = out_dir / "summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
-    summary_object_path = f"{job_name}/summary.json"
+    summary_object_path = f"{job_name}/{run_id}/summary.json"
     with open(summary_path, "rb") as f:
         supabase.storage.from_(RESULTS_BUCKET).upload(
             summary_object_path,
@@ -685,9 +674,6 @@ def run_video(
 
     summary_url = supabase.storage.from_(RESULTS_BUCKET).get_public_url(summary_object_path)
 
-    # ----------------------------
-    # Insert rows into database
-    # ----------------------------
     inserted_count = 0
     if UPSERT_TO_DB and db_rows:
         chunk_size = 500
@@ -698,6 +684,9 @@ def run_video(
 
     return {
         "job_name": job_name,
+        "run_id": run_id,
+        "script_version": SCRIPT_VERSION,
+        "min_confidence": MIN_CONFIDENCE,
         "frames_extracted": len(frame_files),
         "frames_kept": len([x for x in summary if x.get("kept")]),
         "overlay_images_uploaded": uploaded_overlay_count,
