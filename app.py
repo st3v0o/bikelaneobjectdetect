@@ -198,7 +198,6 @@ def submit_job():
     video_start_iso = (request.form.get("video_start_iso") or "").strip()
 
     if not job_name:
-        # Prefer deriving from the selected video folder if possible
         if "/" in video_object_path:
             job_name = video_object_path.split("/", 1)[0]
         else:
@@ -210,21 +209,22 @@ def submit_job():
     if not gpx_object_path:
         return jsonify({"error": "Missing gpx_object_path"}), 400
 
-    try:
-        app.logger.info("Creating signed video URL")
-        video_url = create_signed_download_url(SOURCE_VIDEO_BUCKET, video_object_path)
+    run_id = uuid.uuid4().hex[:10]
 
-        app.logger.info("Creating signed GPX URL")
+    try:
+        app.logger.info(f"Using Modal app: {MODAL_APP_NAME}, function: {MODAL_FUNCTION_NAME}")
+        app.logger.info(f"job_name={job_name}, run_id={run_id}")
+
+        video_url = create_signed_download_url(SOURCE_VIDEO_BUCKET, video_object_path)
         gpx_url = create_signed_download_url(SOURCE_GPX_BUCKET, gpx_object_path)
 
-        app.logger.info("Looking up Modal function")
         fn = modal.Function.from_name(MODAL_APP_NAME, MODAL_FUNCTION_NAME)
 
-        app.logger.info("Spawning Modal job")
         function_call = fn.spawn(
             video_url=video_url,
             gpx_url=gpx_url,
             job_name=job_name,
+            run_id=run_id,
             video_start_iso=video_start_iso or None,
         )
 
@@ -232,6 +232,7 @@ def submit_job():
             {
                 "status": "submitted",
                 "job_name": job_name,
+                "run_id": run_id,
                 "modal_call_id": function_call.object_id,
                 "video_bucket": SOURCE_VIDEO_BUCKET,
                 "video_object_path": video_object_path,
