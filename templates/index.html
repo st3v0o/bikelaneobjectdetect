@@ -46,13 +46,22 @@
       padding: 2px 6px;
       border-radius: 4px;
     }
-    .row {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
+    .status-box {
+      background: #f6f6f6;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
     }
-    .muted {
-      color: #666;
+    .status-row {
+      margin-bottom: 8px;
+    }
+    .status-row:last-child {
+      margin-bottom: 0;
+    }
+    .mono {
+      font-family: Consolas, Monaco, monospace;
+      word-break: break-all;
     }
   </style>
 </head>
@@ -95,6 +104,24 @@
       <button type="submit">Submit Processing Job</button>
     </form>
 
+    <h2>Current Run</h2>
+    <div class="status-box">
+      <div class="status-row"><strong>Job name:</strong> <span id="currentJobName">—</span></div>
+      <div class="status-row"><strong>Run ID:</strong> <span id="currentRunId" class="mono">—</span></div>
+      <div class="status-row"><strong>Modal call ID:</strong> <span id="currentModalCallId" class="mono">—</span></div>
+    </div>
+
+    <h2>Job Progress</h2>
+    <div class="status-box">
+      <div class="status-row"><strong>Status:</strong> <span id="jobStatus">Waiting...</span></div>
+      <div class="status-row"><strong>Step:</strong> <span id="jobStep">—</span></div>
+      <div class="status-row"><strong>Message:</strong> <span id="jobMessage">—</span></div>
+      <div class="status-row"><strong>Script version:</strong> <span id="jobScriptVersion" class="mono">—</span></div>
+      <div class="status-row"><strong>Min confidence:</strong> <span id="jobMinConfidence">—</span></div>
+      <div class="status-row"><strong>Summary URL:</strong> <span id="jobSummaryUrl">—</span></div>
+      <div class="status-row"><strong>Debug URL:</strong> <span id="jobDebugUrl">—</span></div>
+    </div>
+
     <h2>Response</h2>
     <pre id="result">Waiting...</pre>
 
@@ -108,6 +135,20 @@
     const gpxSelect = document.getElementById("gpx_object_path");
     const jobNameInput = document.getElementById("job_name");
     const refreshFilesBtn = document.getElementById("refreshFilesBtn");
+
+    const currentJobName = document.getElementById("currentJobName");
+    const currentRunId = document.getElementById("currentRunId");
+    const currentModalCallId = document.getElementById("currentModalCallId");
+
+    const jobStatus = document.getElementById("jobStatus");
+    const jobStep = document.getElementById("jobStep");
+    const jobMessage = document.getElementById("jobMessage");
+    const jobScriptVersion = document.getElementById("jobScriptVersion");
+    const jobMinConfidence = document.getElementById("jobMinConfidence");
+    const jobSummaryUrl = document.getElementById("jobSummaryUrl");
+    const jobDebugUrl = document.getElementById("jobDebugUrl");
+
+    let pollInterval = null;
 
     function setSelectOptions(selectEl, items, placeholder) {
       selectEl.innerHTML = "";
@@ -124,6 +165,54 @@
         opt.dataset.folder = item.folder || "";
         selectEl.appendChild(opt);
       }
+    }
+
+    function maybeAutoFillJobName() {
+      const selectedVideo = videoSelect.options[videoSelect.selectedIndex];
+      const selectedGpx = gpxSelect.options[gpxSelect.selectedIndex];
+
+      const videoFolder = selectedVideo?.dataset?.folder || "";
+      const gpxFolder = selectedGpx?.dataset?.folder || "";
+
+      if (!jobNameInput.value.trim()) {
+        if (videoFolder && gpxFolder && videoFolder === gpxFolder) {
+          jobNameInput.value = videoFolder;
+        } else if (videoFolder) {
+          jobNameInput.value = videoFolder;
+        } else if (gpxFolder) {
+          jobNameInput.value = gpxFolder;
+        }
+      }
+    }
+
+    function resetProgressUI() {
+      currentJobName.textContent = "—";
+      currentRunId.textContent = "—";
+      currentModalCallId.textContent = "—";
+
+      jobStatus.textContent = "Waiting...";
+      jobStep.textContent = "—";
+      jobMessage.textContent = "—";
+      jobScriptVersion.textContent = "—";
+      jobMinConfidence.textContent = "—";
+      jobSummaryUrl.textContent = "—";
+      jobDebugUrl.textContent = "—";
+    }
+
+    function setLinkOrText(targetEl, value) {
+      targetEl.innerHTML = "";
+
+      if (!value) {
+        targetEl.textContent = "—";
+        return;
+      }
+
+      const a = document.createElement("a");
+      a.href = value;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = value;
+      targetEl.appendChild(a);
     }
 
     async function loadFiles() {
@@ -175,21 +264,46 @@
       }
     }
 
-    function maybeAutoFillJobName() {
-      const selectedVideo = videoSelect.options[videoSelect.selectedIndex];
-      const selectedGpx = gpxSelect.options[gpxSelect.selectedIndex];
+    async function pollJobStatus(jobName, runId) {
+      try {
+        const res = await fetch(`/job-status/${encodeURIComponent(jobName)}/${encodeURIComponent(runId)}`);
+        const text = await res.text();
 
-      const videoFolder = selectedVideo?.dataset?.folder || "";
-      const gpxFolder = selectedGpx?.dataset?.folder || "";
-
-      if (!jobNameInput.value.trim()) {
-        if (videoFolder && gpxFolder && videoFolder === gpxFolder) {
-          jobNameInput.value = videoFolder;
-        } else if (videoFolder) {
-          jobNameInput.value = videoFolder;
-        } else if (gpxFolder) {
-          jobNameInput.value = gpxFolder;
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {
+            status: "error",
+            step: "bad_json",
+            message: text.slice(0, 1000)
+          };
         }
+
+        if (!res.ok) {
+          jobStatus.textContent = data.status || "error";
+          jobStep.textContent = data.step || "request_failed";
+          jobMessage.textContent = data.message || `Status check failed (${res.status})`;
+          return;
+        }
+
+        jobStatus.textContent = data.status || "unknown";
+        jobStep.textContent = data.step || "—";
+        jobMessage.textContent = data.message || "—";
+        jobScriptVersion.textContent = data.script_version || "—";
+        jobMinConfidence.textContent = data.min_confidence ?? "—";
+
+        setLinkOrText(jobSummaryUrl, data.summary_url);
+        setLinkOrText(jobDebugUrl, data.debug_url);
+
+        if (data.status === "complete" || data.status === "failed") {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      } catch (err) {
+        jobStatus.textContent = "error";
+        jobStep.textContent = "polling_failed";
+        jobMessage.textContent = err.message;
       }
     }
 
@@ -199,7 +313,17 @@
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+
+      resetProgressUI();
       result.textContent = "Submitting job...";
+      jobStatus.textContent = "submitting";
+      jobStep.textContent = "submit_job";
+      jobMessage.textContent = "Submitting job to Flask...";
 
       const formData = new FormData(form);
 
@@ -223,13 +347,43 @@
         }
 
         result.textContent = JSON.stringify(parsed, null, 2);
+
+        if (!res.ok || parsed.error) {
+          jobStatus.textContent = "failed";
+          jobStep.textContent = "submit_job";
+          jobMessage.textContent = parsed.error || "Submit failed";
+          return;
+        }
+
+        currentJobName.textContent = parsed.job_name || "—";
+        currentRunId.textContent = parsed.run_id || "—";
+        currentModalCallId.textContent = parsed.modal_call_id || "—";
+
+        jobStatus.textContent = "submitted";
+        jobStep.textContent = "queued";
+        jobMessage.textContent = "Job submitted. Waiting for status updates...";
+
+        if (parsed.job_name && parsed.run_id) {
+          pollInterval = setInterval(() => {
+            pollJobStatus(parsed.job_name, parsed.run_id);
+          }, 2000);
+
+          pollJobStatus(parsed.job_name, parsed.run_id);
+        } else {
+          jobMessage.textContent = "No run_id returned from backend, cannot poll status.";
+        }
       } catch (err) {
         result.textContent = JSON.stringify({
           error: err.message
         }, null, 2);
+
+        jobStatus.textContent = "failed";
+        jobStep.textContent = "submit_job";
+        jobMessage.textContent = err.message;
       }
     });
 
+    resetProgressUI();
     loadFiles();
   </script>
 </body>
