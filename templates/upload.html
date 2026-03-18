@@ -163,15 +163,17 @@
       </div>
 
       <div class="field">
-        <label for="video">Video file</label>
+        <label for="video">Video file <span style="color:#e53e3e">*</span></label>
         <input type="file" id="video" name="video" accept=".mp4,.mov,.m4v,.avi,.mpeg,.mpg" required>
         <p class="hint">Accepted formats: MP4, MOV, M4V, AVI, MPEG. Max 2 GB.</p>
+        <p class="error-msg" id="video-error" style="display:none;color:#e53e3e;font-size:0.85rem;margin-top:4px;">Please select a video file.</p>
       </div>
 
       <div class="field">
-        <label for="gpx">GPX track file</label>
+        <label for="gpx">GPX track file <span style="color:#e53e3e">*</span></label>
         <input type="file" id="gpx" name="gpx" accept=".gpx" required>
         <p class="hint">Export this from your GPS device or cycling app (Garmin, Wahoo, Strava, etc.).</p>
+        <p class="error-msg" id="gpx-error" style="display:none;color:#e53e3e;font-size:0.85rem;margin-top:4px;">Please select a GPX file.</p>
       </div>
 
       <div class="field">
@@ -266,6 +268,33 @@
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+
+      const videoInput = document.getElementById("video");
+      const gpxInput = document.getElementById("gpx");
+      const videoError = document.getElementById("video-error");
+      const gpxError = document.getElementById("gpx-error");
+
+      let valid = true;
+
+      if (!videoInput.files || !videoInput.files[0]) {
+        videoError.style.display = "block";
+        videoInput.style.borderColor = "#e53e3e";
+        valid = false;
+      } else {
+        videoError.style.display = "none";
+        videoInput.style.borderColor = "";
+      }
+
+      if (!gpxInput.files || !gpxInput.files[0]) {
+        gpxError.style.display = "block";
+        gpxInput.style.borderColor = "#e53e3e";
+        valid = false;
+      } else {
+        gpxError.style.display = "none";
+        gpxInput.style.borderColor = "";
+      }
+
+      if (!valid) return;
 
       if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 
