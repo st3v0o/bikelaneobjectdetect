@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Submit a Bike Lane Recording</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 40px 16px;
+      color: #1a1a2e;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.09);
+      max-width: 620px;
+      margin: 0 auto;
+      padding: 40px 36px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.6rem;
+    }
+
+    .subtitle {
+      color: #666;
+      margin: 0 0 32px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .field {
+      margin-bottom: 22px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+    }
+
+    .hint {
+      color: #888;
+      font-size: 0.82rem;
+      margin-top: 4px;
+    }
+
+    input[type="text"],
+    input[type="file"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid #d0d5dd;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      transition: border-color 0.15s;
+      background: #fafafa;
+    }
+
+    input[type="text"]:focus,
+    input[type="file"]:focus {
+      outline: none;
+      border-color: #4a7cf7;
+      background: #fff;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      background: #f0f4ff;
+      border-radius: 8px;
+      border: 1.5px solid #d0deff;
+    }
+
+    .toggle-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #4a7cf7;
+    }
+
+    .toggle-row label {
+      margin: 0;
+      font-weight: 500;
+      font-size: 0.92rem;
+      cursor: pointer;
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      padding: 13px;
+      background: #4a7cf7;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 8px;
+    }
+
+    button[type="submit"]:hover { background: #2f63e8; }
+    button[type="submit"]:disabled { background: #93aef7; cursor: not-allowed; }
+
+    #status-section { margin-top: 28px; display: none; }
+
+    .status-box {
+      border-radius: 10px;
+      padding: 18px 20px;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .status-box.uploading { background: #eef3ff; border: 1.5px solid #c0d0ff; }
+    .status-box.success   { background: #edfaf2; border: 1.5px solid #a3e6be; }
+    .status-box.error     { background: #fff0f0; border: 1.5px solid #ffb3b3; }
+    .status-box.polling   { background: #fffbea; border: 1.5px solid #ffe08a; }
+
+    .status-box strong { display: block; font-size: 1rem; margin-bottom: 8px; }
+
+    .progress-bar-wrap {
+      height: 6px;
+      background: #dce6ff;
+      border-radius: 99px;
+      margin: 12px 0 4px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: #4a7cf7;
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .detail-row { margin: 4px 0; }
+    .detail-row span { font-family: monospace; font-size: 0.85rem; color: #444; word-break: break-all; }
+
+    a { color: #4a7cf7; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Submit a Bike Lane Recording</h1>
+    <p class="subtitle">Upload a video and its matching GPX track. Your recording will be analysed for hazards and added to the map.</p>
+
+    <form id="uploadForm">
+      <div class="field">
+        <label for="job_name">Ride name <span style="font-weight:400;color:#888">(optional)</span></label>
+        <input type="text" id="job_name" name="job_name" placeholder="e.g. richmond-ride-2026-03-18">
+        <p class="hint">Leave blank to auto-generate a name. Use only letters, numbers, and hyphens.</p>
+      </div>
+
+      <div class="field">
+        <label for="video">Video file</label>
+        <input type="file" id="video" name="video" accept=".mp4,.mov,.m4v,.avi,.mpeg,.mpg" required>
+        <p class="hint">Accepted formats: MP4, MOV, M4V, AVI, MPEG. Max 2 GB.</p>
+      </div>
+
+      <div class="field">
+        <label for="gpx">GPX track file</label>
+        <input type="file" id="gpx" name="gpx" accept=".gpx" required>
+        <p class="hint">Export this from your GPS device or cycling app (Garmin, Wahoo, Strava, etc.).</p>
+      </div>
+
+      <div class="field">
+        <label for="video_start_iso">Video start time <span style="font-weight:400;color:#888">(optional)</span></label>
+        <input type="text" id="video_start_iso" name="video_start_iso" placeholder="2026-03-18T14:30:00+00:00">
+        <p class="hint">Only needed if your video and GPX started at different times. Use ISO 8601 format.</p>
+      </div>
+
+      <div class="field">
+        <div class="toggle-row">
+          <input type="checkbox" id="auto_submit" name="auto_submit" value="true" checked>
+          <label for="auto_submit">Automatically start hazard detection after upload</label>
+        </div>
+      </div>
+
+      <button type="submit" id="submitBtn">Upload and submit</button>
+    </form>
+
+    <div id="status-section">
+      <div id="statusBox" class="status-box uploading">
+        <strong id="statusTitle">Uploading…</strong>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+        <div id="statusBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("uploadForm");
+    const submitBtn = document.getElementById("submitBtn");
+    const statusSection = document.getElementById("status-section");
+    const statusBox = document.getElementById("statusBox");
+    const statusTitle = document.getElementById("statusTitle");
+    const statusBody = document.getElementById("statusBody");
+    const progressBar = document.getElementById("progressBar");
+
+    let pollInterval = null;
+
+    function showStatus(type, title, bodyHTML) {
+      statusSection.style.display = "block";
+      statusBox.className = "status-box " + type;
+      statusTitle.textContent = title;
+      statusBody.innerHTML = bodyHTML;
+    }
+
+    function animateProgress(targetPct) {
+      progressBar.style.width = targetPct + "%";
+    }
+
+    function detailRow(label, value) {
+      return `<div class="detail-row">${label}: <span>${value || "—"}</span></div>`;
+    }
+
+    function pollJobStatus(jobName, runId) {
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/job-status/${encodeURIComponent(jobName)}/${encodeURIComponent(runId)}`);
+          const data = await res.json();
+
+          const step = data.step || "—";
+          const message = data.message || "";
+
+          if (data.status === "complete") {
+            clearInterval(pollInterval);
+            animateProgress(100);
+            showStatus("success", "Processing complete!", `
+              ${detailRow("Job", jobName)}
+              ${detailRow("Run ID", runId)}
+              ${detailRow("Step", step)}
+              ${data.summary_url ? `<div class="detail-row"><a href="${data.summary_url}" target="_blank">View summary JSON</a></div>` : ""}
+              <div class="detail-row" style="margin-top:10px"><a href="/map" target="_blank">Open the hazard map</a></div>
+            `);
+          } else if (data.status === "failed") {
+            clearInterval(pollInterval);
+            showStatus("error", "Processing failed", `
+              ${detailRow("Step", step)}
+              ${detailRow("Message", message)}
+            `);
+          } else {
+            showStatus("polling", `Processing… (${step.replace(/_/g, " ")})`, `
+              ${detailRow("Job", jobName)}
+              ${detailRow("Run ID", runId)}
+              ${detailRow("Message", message)}
+            `);
+          }
+        } catch (err) {
+          clearInterval(pollInterval);
+          showStatus("error", "Status check failed", err.message);
+        }
+      }, 3000);
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Uploading…";
+      animateProgress(15);
+      showStatus("uploading", "Uploading files…", "Please keep this page open. Large videos may take a minute.");
+
+      const formData = new FormData(form);
+      const autoSubmit = document.getElementById("auto_submit").checked;
+      if (!autoSubmit) formData.delete("auto_submit");
+
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/upload");
+
+        xhr.upload.addEventListener("progress", (ev) => {
+          if (ev.lengthComputable) {
+            const pct = Math.round((ev.loaded / ev.total) * 80);
+            animateProgress(pct);
+          }
+        });
+
+        xhr.addEventListener("load", () => {
+          let parsed;
+          try { parsed = JSON.parse(xhr.responseText); } catch { parsed = { error: xhr.responseText }; }
+
+          if (xhr.status !== 200 || parsed.error) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Upload and submit";
+            showStatus("error", "Upload failed", parsed.error || `Server returned ${xhr.status}`);
+            return;
+          }
+
+          animateProgress(90);
+
+          if (parsed.status === "submitted" && parsed.run_id) {
+            showStatus("polling", "Files uploaded — starting detection…", `
+              ${detailRow("Job", parsed.job_name)}
+              ${detailRow("Run ID", parsed.run_id)}
+              <div style="margin-top:8px;color:#777;font-size:0.82rem">Checking for updates every few seconds…</div>
+            `);
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Upload and submit";
+            pollJobStatus(parsed.job_name, parsed.run_id);
+          } else {
+            animateProgress(100);
+            showStatus("success", "Files uploaded!", `
+              ${detailRow("Job", parsed.job_name)}
+              ${detailRow("Video", parsed.video_object_path)}
+              ${detailRow("GPX", parsed.gpx_object_path)}
+              <div style="margin-top:8px;color:#555;font-size:0.85rem">Detection was not started automatically. Use the job submitter to process this recording.</div>
+            `);
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Upload and submit";
+          }
+        });
+
+        xhr.addEventListener("error", () => {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Upload and submit";
+          showStatus("error", "Network error", "The upload failed. Please check your connection and try again.");
+        });
+
+        xhr.send(formData);
+
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Upload and submit";
+        showStatus("error", "Unexpected error", err.message);
+      }
+    });
+  </script>
+</body>
+</html>
