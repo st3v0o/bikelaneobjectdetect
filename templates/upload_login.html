@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Upload Access – Safe Bike Lanes RVA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: #ede9df;
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #f7f3eb;
+      border: 1.5px solid #c8c0ad;
+      border-radius: 6px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #3a3428;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin: 0 0 6px;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: #7a7060;
+      margin: 0 0 28px;
+    }
+
+    label {
+      display: block;
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #5a5445;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid #b8af9e;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      font-family: 'Courier New', Courier, monospace;
+      background: #fff;
+      color: #3a3428;
+      margin-bottom: 20px;
+    }
+
+    input[type="password"]:focus {
+      outline: none;
+      border-color: #6b7c5c;
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      padding: 11px;
+      background: #6b7c5c;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      font-family: 'Courier New', Courier, monospace;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    button[type="submit"]:hover { background: #58684b; }
+
+    .error {
+      background: #fff0f0;
+      border: 1.5px solid #f0b8b8;
+      border-radius: 4px;
+      color: #9b3030;
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Upload Access</h1>
+    <p class="subtitle">Enter the password to submit a bike lane recording.</p>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/upload/login">
+      <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autofocus required>
+      <button type="submit">Enter</button>
+    </form>
+  </div>
+</body>
+</html>
