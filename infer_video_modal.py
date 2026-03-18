@@ -51,7 +51,7 @@ def run_video(
     from supabase import create_client
     from ultralytics import YOLO
 
-    SCRIPT_VERSION = "debug-conf06-status-v2"
+    SCRIPT_VERSION = "debug-conf035-relaxed-overlap-v1"
 
     # ----------------------------
     # Config
@@ -66,12 +66,12 @@ def run_video(
     }
 
     FRAME_FPS_EXTRACT = 1
-    MIN_CONFIDENCE = 0.6
+    MIN_CONFIDENCE = 0.35
 
-    BIKE_LANE_SHRINK_PIXELS = 3
-    MIN_INTERSECTION_AREA = 3000.0
-    MIN_HAZARD_OVERLAP_RATIO = 0.25
-    MIN_BIKE_LANE_OVERLAP_RATIO = 0.015
+    BIKE_LANE_SHRINK_PIXELS = 0
+    MIN_INTERSECTION_AREA = 500.0
+    MIN_HAZARD_OVERLAP_RATIO = 0.05
+    MIN_BIKE_LANE_OVERLAP_RATIO = 0.005
     REQUIRE_CENTROID_IN_LANE = False
 
     UPSERT_TO_DB = True
@@ -122,17 +122,9 @@ def run_video(
     print(f"RUN_ID={run_id}")
     print(f"MIN_CONFIDENCE={MIN_CONFIDENCE}")
 
-    assert abs(MIN_CONFIDENCE - 0.6) < 1e-9, f"Expected 0.6, got {MIN_CONFIDENCE}"
+    assert abs(MIN_CONFIDENCE - 0.35) < 1e-9, f"Expected 0.35, got {MIN_CONFIDENCE}"
 
     update_job_status("running", "starting", "Job started")
-
-    # Delete old DB rows for this job so results are not mixed
-    if UPSERT_TO_DB:
-        try:
-            supabase.table(DETECTIONS_TABLE).delete().eq("job_name", job_name).execute()
-            print(f"Deleted old rows for job_name={job_name}")
-        except Exception as e:
-            print(f"Warning: failed deleting old rows for {job_name}: {e}")
 
     # ----------------------------
     # Working dirs
