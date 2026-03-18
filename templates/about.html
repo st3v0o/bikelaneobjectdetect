@@ -282,7 +282,7 @@
         <div class="box accent">
           <span class="icon">🤖</span>
           <span class="label">AI Analysis</span>
-          <span class="sub">YOLOv8 on Modal GPU</span>
+          <span class="sub">YOLOv8-seg on Modal GPU</span>
         </div>
       </div>
     </div>
@@ -301,7 +301,7 @@
       </li>
       <li>
         <div>
-          <strong>Trigger AI analysis.</strong> The backend sends the files to Modal, a cloud platform that provides on-demand GPU computing. A computer vision model called <strong>YOLOv8</strong> (You Only Look Once, version 8) scans every frame of the video and draws bounding boxes around anything it recognises as a hazard.
+          <strong>Trigger AI analysis.</strong> The backend sends the files to Modal, a cloud platform that provides on-demand GPU computing. A computer vision model called <strong>YOLOv8-seg</strong> (You Only Look Once, version 8 — segmentation) scans every frame of the video and traces a precise polygon outline around anything it recognises as a hazard. The polygon is then checked to see if it actually overlaps the bike lane area of the frame.
         </div>
       </li>
       <li>
@@ -323,12 +323,22 @@
 
     <h2>The AI Model</h2>
     <p>
-      YOLOv8 is a real-time object detection model. It was originally trained on
-      a general dataset (people, cars, animals, etc.) and then fine-tuned here on
-      labelled images of bike lane hazards. When it looks at a video frame it
-      assigns each detected object a <strong>confidence score</strong> — how sure it is
-      about the label. Only detections that meet a minimum confidence threshold and
-      appear within the bike lane region of the frame are recorded.
+      The model is <strong>YOLOv8-seg</strong> — a real-time <em>instance segmentation</em>
+      model. Unlike a basic detection model that draws a rectangle around an object,
+      a segmentation model traces a precise <strong>polygon outline</strong> (a mask)
+      around the actual shape of the hazard.
+    </p>
+    <p>
+      That polygon matters because the system uses it to check whether the hazard's
+      outline genuinely overlaps with the bike lane region of the frame. A vehicle
+      parked a metre outside the lane won't trigger a detection — only objects whose
+      mask actually intersects the lane area are recorded.
+    </p>
+    <p>
+      The model was fine-tuned on labelled images of bike lane hazards. When it
+      analyses a frame it assigns each detected object a <strong>confidence score</strong>
+      — how certain it is about the label. Only detections above a minimum confidence
+      threshold that also overlap with the bike lane are saved.
     </p>
 
     <div class="note-box">
