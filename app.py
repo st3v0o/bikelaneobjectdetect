@@ -177,6 +177,11 @@ def health():
     return jsonify({"status": "ok"})
 
 
+@app.get("/about")
+def about():
+    return render_template("about.html")
+
+
 @app.get("/map")
 def map_page():
     selected_hazard = request.args.get("hazard", "all").strip()
