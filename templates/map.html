@@ -135,7 +135,7 @@
 
       #filter-bar .filter-group:nth-child(2),
       #filter-bar .filter-group:nth-child(3) {
-        flex: 1 1 calc(50% - 3px);
+        flex: 1 1 100%;
         min-width: 0;
       }
 
@@ -145,9 +145,13 @@
       .filter-group input[type="date"] {
         width: 100%;
         min-width: 0;
+        max-width: 100%;
         font-size: 0.72rem;
         height: 30px;
         padding: 0 4px;
+        -webkit-appearance: none;
+        appearance: none;
+        box-sizing: border-box;
       }
 
       .filter-actions {
@@ -164,7 +168,7 @@
         padding: 0 8px;
       }
 
-      #map { height: calc(100vh - 110px); }
+      #map { height: calc(100vh - 185px); }
     }
   </style>
 </head>
