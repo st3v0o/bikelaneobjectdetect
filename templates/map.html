@@ -24,11 +24,12 @@
       flex-wrap: wrap;
       align-items: flex-end;
       gap: 10px;
-      padding: 10px 14px;
-      background: #fff;
-      border-bottom: 1px solid #dde3ec;
+      padding: 10px 16px;
+      background: #ede9df;
+      border-bottom: 1px solid #c8c0ad;
       z-index: 1000;
       position: relative;
+      font-family: 'Courier New', Courier, monospace;
     }
 
     .filter-group {
@@ -38,28 +39,30 @@
     }
 
     .filter-group label {
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: #555;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #5a5445;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.08em;
+      font-family: 'Courier New', Courier, monospace;
     }
 
     .filter-group select,
     .filter-group input[type="date"] {
       padding: 6px 10px;
-      border: 1.5px solid #d0d5dd;
-      border-radius: 6px;
-      font-size: 0.88rem;
-      background: #fafafa;
-      color: #1a1a2e;
+      border: 1.5px solid #b8af9e;
+      border-radius: 4px;
+      font-size: 0.86rem;
+      background: #f7f3eb;
+      color: #3a3428;
       height: 34px;
+      font-family: 'Courier New', Courier, monospace;
     }
 
     .filter-group select:focus,
     .filter-group input[type="date"]:focus {
       outline: none;
-      border-color: #4a7cf7;
+      border-color: #6b7c5c;
       background: #fff;
     }
 
@@ -72,31 +75,34 @@
     .btn-apply {
       padding: 0 18px;
       height: 34px;
-      background: #4a7cf7;
+      background: #6b7c5c;
       color: #fff;
       border: none;
-      border-radius: 6px;
-      font-size: 0.88rem;
-      font-weight: 600;
+      border-radius: 4px;
+      font-size: 0.86rem;
+      font-weight: 700;
       cursor: pointer;
+      letter-spacing: 0.04em;
+      font-family: 'Courier New', Courier, monospace;
     }
 
-    .btn-apply:hover { background: #2f63e8; }
+    .btn-apply:hover { background: #58684b; }
 
     .btn-reset {
       padding: 0 14px;
       height: 34px;
-      background: #f4f6f8;
-      color: #444;
-      border: 1.5px solid #d0d5dd;
-      border-radius: 6px;
-      font-size: 0.88rem;
+      background: #f7f3eb;
+      color: #5a5445;
+      border: 1.5px solid #b8af9e;
+      border-radius: 4px;
+      font-size: 0.86rem;
       text-decoration: none;
       display: flex;
       align-items: center;
+      font-family: 'Courier New', Courier, monospace;
     }
 
-    .btn-reset:hover { background: #e8ecf0; }
+    .btn-reset:hover { background: #ede9df; }
 
     #map {
       width: 100%;
@@ -107,14 +113,14 @@
       width: 100%;
       max-width: 280px;
       height: auto;
-      border-radius: 8px;
+      border-radius: 6px;
       margin-top: 8px;
     }
 
     @media (max-width: 600px) {
       #filter-bar { padding: 8px 10px; gap: 8px; }
       .filter-group select,
-      .filter-group input[type="date"] { font-size: 0.82rem; }
+      .filter-group input[type="date"] { font-size: 0.8rem; }
     }
   </style>
 </head>
