@@ -164,10 +164,17 @@ def health():
 
 @app.get("/map")
 def map_page():
+    selected_hazard = request.args.get("hazard", "all").strip()
+    selected_start  = request.args.get("start", "").strip()
+    selected_end    = request.args.get("end", "").strip()
+
     return render_template(
         "map.html",
         supabase_url=SUPABASE_URL,
         supabase_anon_key=SUPABASE_ANON_KEY,
+        selected_hazard=selected_hazard,
+        selected_start=selected_start,
+        selected_end=selected_end,
     )
 
 
