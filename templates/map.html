@@ -117,10 +117,36 @@
       margin-top: 8px;
     }
 
-    @media (max-width: 600px) {
-      #filter-bar { padding: 8px 10px; gap: 8px; }
+    @media (max-width: 640px) {
+      #filter-bar {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+          "hazard  hazard"
+          "start   end"
+          "actions actions";
+        padding: 10px 12px;
+        gap: 8px;
+      }
+
+      #filter-bar .filter-group:nth-child(1) { grid-area: hazard; }
+      #filter-bar .filter-group:nth-child(2) { grid-area: start; }
+      #filter-bar .filter-group:nth-child(3) { grid-area: end; }
+      #filter-bar .filter-actions            { grid-area: actions; }
+
       .filter-group select,
-      .filter-group input[type="date"] { font-size: 0.8rem; }
+      .filter-group input[type="date"] {
+        width: 100%;
+        font-size: 0.82rem;
+      }
+
+      .btn-apply, .btn-reset {
+        flex: 1;
+        justify-content: center;
+        font-size: 0.82rem;
+      }
+
+      #map { height: calc(100vh - 120px); }
     }
   </style>
 </head>
