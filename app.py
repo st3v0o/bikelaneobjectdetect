@@ -344,7 +344,7 @@ def upload_login():
 @app.post("/upload/login")
 def upload_login_post():
     password = request.form.get("password", "")
-    next_url = request.form.get("next", url_for("upload_page"))
+    next_url = request.form.get("next", "").strip() or url_for("upload_page")
     if password == UPLOAD_PASSWORD:
         session["upload_authenticated"] = True
         return redirect(next_url)
