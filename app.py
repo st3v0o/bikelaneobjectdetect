@@ -11,10 +11,11 @@ import modal
 
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_BYTES", str(2 * 1024 * 1024 * 1024)))  # 2 GB default
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 
 SOURCE_VIDEO_BUCKET = os.getenv("SOURCE_VIDEO_BUCKET", "source-videos")
 SOURCE_GPX_BUCKET = os.getenv("SOURCE_GPX_BUCKET", "source-gpx")
@@ -27,7 +28,7 @@ SIGNED_URL_TTL_SECONDS = int(os.getenv("SIGNED_URL_TTL_SECONDS", "3600"))
 VIDEO_EXTENSIONS = (".mp4", ".mov", ".m4v", ".avi", ".mpeg", ".mpg")
 GPX_EXTENSIONS = (".gpx",)
 
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY else None
 
 
 def create_signed_download_url(bucket: str, object_path: str) -> str:
@@ -312,6 +313,94 @@ def submit_job():
         ), 500
 
 
+@app.get("/upload")
+def upload_page():
+    return render_template("upload.html")
+
+
+@app.post("/upload")
+def handle_upload():
+    if supabase is None:
+        return jsonify({"error": "Supabase is not configured on this server"}), 503
+
+    video_file = request.files.get("video")
+    gpx_file = request.files.get("gpx")
+    job_name = (request.form.get("job_name") or "").strip()
+    video_start_iso = (request.form.get("video_start_iso") or "").strip()
+    auto_submit = request.form.get("auto_submit") == "true"
+
+    if not video_file or not video_file.filename:
+        return jsonify({"error": "No video file provided"}), 400
+    if not gpx_file or not gpx_file.filename:
+        return jsonify({"error": "No GPX file provided"}), 400
+
+    video_filename = video_file.filename
+    gpx_filename = gpx_file.filename
+
+    if not video_filename.lower().endswith(VIDEO_EXTENSIONS):
+        return jsonify({"error": f"Unsupported video format. Allowed: {VIDEO_EXTENSIONS}"}), 400
+    if not gpx_filename.lower().endswith(GPX_EXTENSIONS):
+        return jsonify({"error": "File must be a .gpx file"}), 400
+
+    if not job_name:
+        job_name = f"upload-{uuid.uuid4().hex[:10]}"
+
+    video_object_path = f"{job_name}/{video_filename}"
+    gpx_object_path = f"{job_name}/{gpx_filename}"
+
+    try:
+        app.logger.info(f"Uploading video to {SOURCE_VIDEO_BUCKET}/{video_object_path}")
+        supabase.storage.from_(SOURCE_VIDEO_BUCKET).upload(
+            video_object_path,
+            video_file.read(),
+            {"content-type": video_file.content_type or "video/mp4", "x-upsert": "true"},
+        )
+
+        app.logger.info(f"Uploading GPX to {SOURCE_GPX_BUCKET}/{gpx_object_path}")
+        supabase.storage.from_(SOURCE_GPX_BUCKET).upload(
+            gpx_object_path,
+            gpx_file.read(),
+            {"content-type": "application/gpx+xml", "x-upsert": "true"},
+        )
+
+        result = {
+            "status": "uploaded",
+            "job_name": job_name,
+            "video_object_path": video_object_path,
+            "gpx_object_path": gpx_object_path,
+        }
+
+        if auto_submit:
+            run_id = uuid.uuid4().hex[:10]
+            video_url = create_signed_download_url(SOURCE_VIDEO_BUCKET, video_object_path)
+            gpx_url = create_signed_download_url(SOURCE_GPX_BUCKET, gpx_object_path)
+
+            fn = modal.Function.from_name(MODAL_APP_NAME, MODAL_FUNCTION_NAME)
+            function_call = fn.spawn(
+                video_url=video_url,
+                gpx_url=gpx_url,
+                job_name=job_name,
+                run_id=run_id,
+                video_start_iso=video_start_iso or None,
+            )
+
+            result.update({
+                "status": "submitted",
+                "run_id": run_id,
+                "modal_call_id": function_call.object_id,
+            })
+
+        return jsonify(result)
+
+    except Exception as e:
+        app.logger.exception("Exception inside /upload")
+        return jsonify({
+            "error": str(e),
+            "type": e.__class__.__name__,
+            "traceback": traceback.format_exc(),
+        }), 500
+
+
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "10000"))
+    port = int(os.getenv("PORT", "5000"))
     app.run(host="0.0.0.0", port=port, debug=False)
