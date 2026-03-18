@@ -3,8 +3,9 @@ import uuid
 import traceback
 from typing import List, Dict, Any
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.exceptions import RequestEntityTooLarge, HTTPException
+import functools
 
 from supabase import create_client
 import modal
@@ -12,6 +13,20 @@ import modal
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_BYTES", str(2 * 1024 * 1024 * 1024)))  # 2 GB default
+app.secret_key = os.environ.get("SESSION_SECRET", os.urandom(24))
+
+UPLOAD_PASSWORD = os.environ.get("UPLOAD_PASSWORD", "")
+
+
+def upload_login_required(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if not UPLOAD_PASSWORD:
+            return f(*args, **kwargs)
+        if not session.get("upload_authenticated"):
+            return redirect(url_for("upload_login", next=request.url))
+        return f(*args, **kwargs)
+    return decorated
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -320,12 +335,36 @@ def submit_job():
         ), 500
 
 
+@app.get("/upload/login")
+def upload_login():
+    error = request.args.get("error")
+    return render_template("upload_login.html", error=error)
+
+
+@app.post("/upload/login")
+def upload_login_post():
+    password = request.form.get("password", "")
+    next_url = request.form.get("next", url_for("upload_page"))
+    if password == UPLOAD_PASSWORD:
+        session["upload_authenticated"] = True
+        return redirect(next_url)
+    return redirect(url_for("upload_login", error="Incorrect password"))
+
+
+@app.get("/upload/logout")
+def upload_logout():
+    session.pop("upload_authenticated", None)
+    return redirect(url_for("upload_login"))
+
+
 @app.get("/upload")
+@upload_login_required
 def upload_page():
     return render_template("upload.html")
 
 
 @app.post("/upload")
+@upload_login_required
 def handle_upload():
     if supabase is None:
         return jsonify({"error": "Supabase is not configured on this server"}), 503
