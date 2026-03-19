@@ -1,173 +1,85 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Submit Your Own Ride – Safe Bike Lanes RVA</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
+<style>
+  .sblrva-submit *, .sblrva-submit *::before, .sblrva-submit *::after { box-sizing: border-box; }
 
-    body {
-      font-family: "Courier New", Courier, monospace;
-      background: #ede9df;
-      color: #2c2c2c;
-      margin: 0;
-      padding: 32px 16px 60px;
-    }
+  .sblrva-submit {
+    font-family: "Courier New", Courier, monospace;
+    color: #2c2c2c;
+    padding: 32px 16px 60px;
+  }
 
-    .page {
-      max-width: 680px;
-      margin: 0 auto;
-    }
+  .sblrva-submit .page { max-width: 680px; margin: 0 auto; }
 
-    h1 {
-      font-size: 1.5rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #3a3a2e;
-      margin: 0 0 6px;
-    }
+  .sblrva-submit h1 {
+    font-size: 1.5rem; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #3a3a2e; margin: 0 0 6px;
+  }
 
-    .tagline {
-      color: #6b7c5c;
-      font-size: 0.9rem;
-      margin: 0 0 36px;
-    }
+  .sblrva-submit .tagline { color: #6b7c5c; font-size: 0.9rem; margin: 0 0 36px; }
 
-    h2 {
-      font-size: 0.95rem;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      color: #6b7c5c;
-      margin: 32px 0 10px;
-      border-bottom: 1px solid #c8c2b4;
-      padding-bottom: 6px;
-    }
+  .sblrva-submit h2 {
+    font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.07em;
+    color: #6b7c5c; margin: 32px 0 10px;
+    border-bottom: 1px solid #c8c2b4; padding-bottom: 6px;
+  }
 
-    p {
-      line-height: 1.75;
-      margin: 0 0 14px;
-      font-size: 0.93rem;
-    }
+  .sblrva-submit p { line-height: 1.75; margin: 0 0 14px; font-size: 0.93rem; }
 
-    code {
-      background: #ddd8ce;
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-size: 0.88em;
-    }
+  .sblrva-submit code {
+    background: #ddd8ce; padding: 1px 5px; border-radius: 3px; font-size: 0.88em;
+  }
 
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin: 14px 0 24px;
-    }
+  .sblrva-submit .two-col {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0 24px;
+  }
 
-    .item-card {
-      background: #fff8ef;
-      border: 1.5px solid #b0aa9a;
-      border-radius: 6px;
-      padding: 14px 16px;
-    }
+  .sblrva-submit .item-card {
+    background: #fff8ef; border: 1.5px solid #b0aa9a; border-radius: 6px; padding: 14px 16px;
+  }
 
-    .item-card strong {
-      display: block;
-      font-size: 0.9rem;
-      color: #3a3a2e;
-      margin-bottom: 4px;
-    }
+  .sblrva-submit .item-card strong { display: block; font-size: 0.9rem; color: #3a3a2e; margin-bottom: 4px; }
+  .sblrva-submit .item-card span { font-size: 0.8rem; color: #7a7060; line-height: 1.5; }
 
-    .item-card span {
-      font-size: 0.8rem;
-      color: #7a7060;
-      line-height: 1.5;
-    }
+  .sblrva-submit .note-box {
+    background: #f5f1e8; border-left: 3px solid #b08840;
+    border-radius: 4px; padding: 12px 16px; font-size: 0.88rem;
+    line-height: 1.65; margin: 0 0 24px; color: #3a3a2e;
+  }
 
-    .note-box {
-      background: #f5f1e8;
-      border-left: 3px solid #b08840;
-      border-radius: 4px;
-      padding: 12px 16px;
-      font-size: 0.88rem;
-      line-height: 1.65;
-      margin: 0 0 24px;
-      color: #3a3a2e;
-    }
+  .sblrva-submit .app-list { list-style: none; padding: 0; margin: 10px 0 0; }
+  .sblrva-submit .app-list li {
+    font-size: 0.9rem; line-height: 1.7; padding: 8px 0;
+    border-bottom: 1px solid #d8d2c8;
+  }
+  .sblrva-submit .app-list li:last-child { border-bottom: none; }
+  .sblrva-submit .app-list .app-name { font-weight: bold; color: #3a3a2e; }
 
-    .app-list {
-      list-style: none;
-      padding: 0;
-      margin: 10px 0 0;
-    }
+  .sblrva-submit .badge {
+    font-size: 0.65rem; background: #6b7c5c; color: #ede9df;
+    padding: 1px 6px; border-radius: 10px; font-weight: normal;
+    margin-left: 6px; vertical-align: middle;
+  }
+  .sblrva-submit .badge.untested { background: #a09080; }
 
-    .app-list li {
-      font-size: 0.9rem;
-      line-height: 1.7;
-      padding: 8px 0;
-      border-bottom: 1px solid #d8d2c8;
-    }
+  .sblrva-submit .cta-block {
+    background: #6b7c5c; border-radius: 6px;
+    padding: 22px 24px; text-align: center; margin-top: 36px;
+  }
+  .sblrva-submit .cta-block p { color: #ede9df; margin: 0 0 14px; font-size: 0.9rem; }
 
-    .app-list li:last-child {
-      border-bottom: none;
-    }
+  .sblrva-submit .cta-btn {
+    display: inline-block; background: #ede9df; color: #3a3a2e;
+    text-decoration: none; font-family: "Courier New", Courier, monospace;
+    font-size: 0.88rem; font-weight: bold; letter-spacing: 0.05em;
+    padding: 11px 28px; border-radius: 5px; text-transform: uppercase;
+  }
+  .sblrva-submit .cta-btn:hover { background: #fff8ef; }
 
-    .app-list .app-name {
-      font-weight: bold;
-      color: #3a3a2e;
-    }
+  @media (max-width: 480px) {
+    .sblrva-submit .two-col { grid-template-columns: 1fr; }
+  }
+</style>
 
-    .badge {
-      font-size: 0.65rem;
-      background: #6b7c5c;
-      color: #ede9df;
-      padding: 1px 6px;
-      border-radius: 10px;
-      font-weight: normal;
-      margin-left: 6px;
-      vertical-align: middle;
-    }
-
-    .badge.untested {
-      background: #a09080;
-    }
-
-    .cta-block {
-      background: #6b7c5c;
-      border-radius: 6px;
-      padding: 22px 24px;
-      text-align: center;
-      margin-top: 36px;
-    }
-
-    .cta-block p {
-      color: #ede9df;
-      margin: 0 0 14px;
-      font-size: 0.9rem;
-    }
-
-    .cta-btn {
-      display: inline-block;
-      background: #ede9df;
-      color: #3a3a2e;
-      text-decoration: none;
-      font-family: "Courier New", Courier, monospace;
-      font-size: 0.88rem;
-      font-weight: bold;
-      letter-spacing: 0.05em;
-      padding: 11px 28px;
-      border-radius: 5px;
-      text-transform: uppercase;
-    }
-
-    .cta-btn:hover { background: #fff8ef; }
-
-    @media (max-width: 480px) {
-      .two-col { grid-template-columns: 1fr; }
-    }
-  </style>
-</head>
-<body>
+<div class="sblrva-submit">
   <div class="page">
 
     <h1>Submit Your Own Ride</h1>
@@ -218,5 +130,4 @@
     </div>
 
   </div>
-</body>
-</html>
+</div>
