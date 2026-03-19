@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Submit Your Own Ride – Safe Bike Lanes RVA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: "Courier New", Courier, monospace;
+      background: #ede9df;
+      color: #2c2c2c;
+      margin: 0;
+      padding: 32px 16px 60px;
+    }
+
+    .page {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #3a3a2e;
+      margin: 0 0 6px;
+    }
+
+    .tagline {
+      color: #6b7c5c;
+      font-size: 0.9rem;
+      margin: 0 0 36px;
+    }
+
+    h2 {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #6b7c5c;
+      margin: 36px 0 12px;
+      border-bottom: 1px solid #c8c2b4;
+      padding-bottom: 6px;
+    }
+
+    p {
+      line-height: 1.75;
+      margin: 0 0 14px;
+      font-size: 0.93rem;
+    }
+
+    .highlight {
+      background: #6b7c5c;
+      color: #ede9df;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    code {
+      background: #ddd8ce;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.88em;
+    }
+
+    /* What you need cards */
+    .needs {
+      display: flex;
+      gap: 16px;
+      margin: 20px 0 28px;
+      flex-wrap: wrap;
+    }
+
+    .need-card {
+      flex: 1 1 200px;
+      background: #fff8ef;
+      border: 1.5px solid #b0aa9a;
+      border-radius: 6px;
+      padding: 18px 20px;
+      text-align: center;
+    }
+
+    .need-card .icon {
+      font-size: 2rem;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .need-card .need-label {
+      font-weight: bold;
+      font-size: 0.9rem;
+      color: #3a3a2e;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .need-card .need-sub {
+      font-size: 0.78rem;
+      color: #7a7060;
+      line-height: 1.5;
+    }
+
+    /* Step list */
+    .steps {
+      counter-reset: step;
+      list-style: none;
+      padding: 0;
+      margin: 0 0 8px;
+    }
+
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 14px;
+      margin-bottom: 22px;
+      font-size: 0.92rem;
+      line-height: 1.65;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      background: #6b7c5c;
+      color: #ede9df;
+      font-weight: bold;
+      min-width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+
+    /* App option blocks */
+    .app-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin: 16px 0 24px;
+    }
+
+    .app-block {
+      background: #fff8ef;
+      border: 1.5px solid #b0aa9a;
+      border-radius: 6px;
+      padding: 16px 20px;
+    }
+
+    .app-block .app-name {
+      font-weight: bold;
+      font-size: 0.95rem;
+      color: #3a3a2e;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .app-block .badge {
+      font-size: 0.68rem;
+      background: #6b7c5c;
+      color: #ede9df;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-weight: normal;
+      vertical-align: middle;
+    }
+
+    .app-block .badge.untested {
+      background: #a09080;
+    }
+
+    .app-block ol {
+      margin: 6px 0 0 18px;
+      padding: 0;
+      font-size: 0.88rem;
+      line-height: 1.7;
+      color: #3a3a2e;
+    }
+
+    /* Warning / tip box */
+    .tip-box {
+      background: #f5f1e8;
+      border-left: 3px solid #6b7c5c;
+      border-radius: 4px;
+      padding: 14px 18px;
+      font-size: 0.88rem;
+      line-height: 1.65;
+      margin: 24px 0;
+      color: #3a3a2e;
+    }
+
+    .tip-box.warn {
+      border-left-color: #b08840;
+    }
+
+    /* CTA */
+    .cta-block {
+      background: #6b7c5c;
+      border-radius: 6px;
+      padding: 24px 28px;
+      text-align: center;
+      margin-top: 36px;
+    }
+
+    .cta-block p {
+      color: #ede9df;
+      margin: 0 0 16px;
+      font-size: 0.95rem;
+    }
+
+    .cta-btn {
+      display: inline-block;
+      background: #ede9df;
+      color: #3a3a2e;
+      text-decoration: none;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 0.9rem;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      padding: 12px 32px;
+      border-radius: 5px;
+      text-transform: uppercase;
+    }
+
+    .cta-btn:hover {
+      background: #fff8ef;
+    }
+
+    @media (max-width: 480px) {
+      .needs { flex-direction: column; }
+      .need-card { text-align: left; display: flex; align-items: flex-start; gap: 14px; }
+      .need-card .icon { font-size: 1.6rem; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <h1>Submit Your Own Ride</h1>
+    <p class="tagline">Help map Richmond's bike lane hazards by contributing your own recordings.</p>
+
+    <h2>What You Need</h2>
+    <p>Every submission requires two files recorded during the same ride:</p>
+
+    <div class="needs">
+      <div class="need-card">
+        <span class="icon">🎥</span>
+        <span class="need-label">A video file</span>
+        <span class="need-sub">MP4, MOV, or similar. Camera mounted to your bike, pointed forward down the lane.</span>
+      </div>
+      <div class="need-card">
+        <span class="icon">📍</span>
+        <span class="need-label">A GPX file</span>
+        <span class="need-sub">GPS track exported from your phone or bike computer. Contains your route and timestamps.</span>
+      </div>
+    </div>
+
+    <div class="tip-box warn">
+      <strong>Timing is important.</strong> The video and GPS tracker should be started at roughly the same moment. The system matches each video frame to a GPS coordinate using timestamps — if they're out of sync, detections will be pinned to the wrong location on the map.
+    </div>
+
+    <h2>Step by Step</h2>
+    <ol class="steps">
+      <li>
+        <div>
+          <strong>Mount your camera.</strong> Attach your phone or action camera to your handlebars or helmet, aimed forward along the bike lane. Make sure the lens is clear and the recording will capture the road surface ahead.
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Open your GPS tracker app</strong> and have it ready to start — but don't start it yet. See the apps section below for options.
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Start both at the same time.</strong> Hit record on your camera and start your GPS tracker as close to simultaneously as you can. Even a few seconds off is fine — major drift over the course of a ride is the thing to avoid.
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Ride your route.</strong> No special technique needed. Just ride normally through the bike lanes you want to document.
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Stop both recordings</strong> when you're done and save them.
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Export your GPX file</strong> from the tracker app (instructions below) and transfer both files — video and GPX — to wherever you'll upload from.
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Upload using the form below.</strong> Submit both files together and the system will handle the rest.
+        </div>
+      </li>
+    </ol>
+
+    <h2>GPS Tracker Apps &amp; GPX Export</h2>
+    <p>Any app that records a GPS track and can export a <code>.gpx</code> file will work. Here are a few options:</p>
+
+    <div class="app-grid">
+
+      <div class="app-block">
+        <div class="app-name">GPX Tracker <span class="badge">Recommended</span></div>
+        <ol>
+          <li>Open the app and tap <strong>Start</strong> to begin recording.</li>
+          <li>When your ride is done, tap <strong>Stop</strong> and save the track.</li>
+          <li>Go to your saved tracks, select the ride, and tap the share/export icon.</li>
+          <li>Choose <strong>Export as GPX</strong> and save or share the file to your device.</li>
+        </ol>
+      </div>
+
+      <div class="app-block">
+        <div class="app-name">Strava <span class="badge untested">GPX export — not yet tested</span></div>
+        <ol>
+          <li>Record your ride as normal in Strava.</li>
+          <li>After saving, open the activity on the website (not the app).</li>
+          <li>Click the <strong>&#8943;</strong> (more) menu → <strong>Export GPX</strong>.</li>
+          <li>Note: Strava's free tier may limit export options.</li>
+        </ol>
+      </div>
+
+      <div class="app-block">
+        <div class="app-name">Ride with GPS <span class="badge untested">GPX export — not yet tested</span></div>
+        <ol>
+          <li>Record your ride in the app.</li>
+          <li>Open the activity on the website.</li>
+          <li>Click <strong>Export</strong> → <strong>GPX File</strong>.</li>
+          <li>A basic free account should support GPX export.</li>
+        </ol>
+      </div>
+
+    </div>
+
+    <div class="tip-box">
+      <strong>Not sure which app to use?</strong> GPX Tracker (iOS/Android) is the simplest option — it's purpose-built for exporting GPX files and requires no account. Strava and Ride with GPS are great if you already use them for tracking rides, but the GPX export step requires logging in on their website rather than the app.
+    </div>
+
+    <h2>File Requirements</h2>
+    <p>
+      <strong>Video:</strong> MP4, MOV, M4V, AVI, or MPEG. Any resolution is fine, though higher quality will produce more accurate detections. Try to keep the camera stable.
+    </p>
+    <p>
+      <strong>GPX:</strong> Standard <code>.gpx</code> format. Must contain timestamped trackpoints (most apps export these by default). Route files without timestamps won't work.
+    </p>
+
+    <div class="cta-block">
+      <p>Ready to contribute? Upload your video and GPX file using the form below.</p>
+      <a class="cta-btn" href="https://bikelaneobjectdetect.onrender.com/upload">Upload Your Ride &rarr;</a>
+    </div>
+
+  </div>
+</body>
+</html>
