@@ -85,9 +85,15 @@
       letter-spacing: 0.06em;
       text-transform: uppercase;
       cursor: pointer;
+      transition: background 0.15s;
     }
 
     button[type="submit"]:hover { background: #58684b; }
+
+    button[type="submit"]:disabled {
+      background: #9aaa8c;
+      cursor: not-allowed;
+    }
 
     .error {
       background: #fff0f0;
@@ -98,6 +104,13 @@
       padding: 8px 12px;
       margin-bottom: 16px;
       text-align: left;
+    }
+
+    .loading-note {
+      font-size: 0.72rem;
+      color: #7a7060;
+      margin-top: 10px;
+      display: none;
     }
   </style>
 </head>
@@ -110,12 +123,22 @@
     <div class="error">{{ error }}</div>
     {% endif %}
 
-    <form method="post" action="/upload/login">
+    <form method="post" action="/upload/login" id="loginForm">
       <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
       <label for="password">Password</label>
       <input type="password" id="password" name="password" autofocus required>
-      <button type="submit">Enter</button>
+      <button type="submit" id="submitBtn">Enter</button>
+      <p class="loading-note" id="loadingNote">Connecting — this may take up to 30 seconds if the server is waking up...</p>
     </form>
   </div>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function() {
+      var btn = document.getElementById('submitBtn');
+      var note = document.getElementById('loadingNote');
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+      note.style.display = 'block';
+    });
+  </script>
 </body>
 </html>
