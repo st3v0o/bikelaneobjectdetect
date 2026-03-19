@@ -1,246 +1,188 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Richmond Bike Lanes Map | Safe Bike Lanes RVA</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Interactive Richmond bike lanes map showing detected hazards, bike lane conditions, and routes to help cyclists ride safely.">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
+<style>
+  .sblrva-home *, .sblrva-home *::before, .sblrva-home *::after { box-sizing: border-box; }
 
-    body {
-      font-family: "Courier New", Courier, monospace;
-      background: #ede9df;
-      color: #2c2c2c;
-      margin: 0;
-      padding: 0;
-    }
+  .sblrva-home {
+    font-family: "Courier New", Courier, monospace;
+    color: #2c2c2c;
+    padding: 0;
+    margin: 0;
+  }
 
-    /* ── Nav ── */
-    nav {
-      border-bottom: 1px solid #c8c2b4;
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 52px;
-      background: #ede9df;
-    }
+  .sblrva-home .hero {
+    padding: 40px 24px 28px;
+    max-width: 680px;
+    margin: 0 auto;
+  }
 
-    .nav-brand {
-      font-size: 0.88rem;
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #3a3a2e;
-      text-decoration: none;
-    }
+  .sblrva-home .hero h1 {
+    font-size: 1.35rem;
+    line-height: 1.55;
+    color: #3a3a2e;
+    margin: 0 0 10px;
+    font-weight: normal;
+  }
 
-    .nav-links {
-      display: flex;
-      gap: 28px;
-      list-style: none;
-      margin: 0;
-      padding: 0;
-    }
+  .sblrva-home .hero .sub {
+    font-size: 0.88rem;
+    color: #6b7c5c;
+    margin: 0;
+  }
 
-    .nav-links a {
-      font-size: 0.82rem;
-      color: #6b7c5c;
-      text-decoration: none;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
+  .sblrva-home .map-wrap {
+    padding: 0 24px;
+  }
 
-    .nav-links a:hover { color: #3a3a2e; }
+  .sblrva-home .map-wrap iframe {
+    width: 100%;
+    height: 520px;
+    border: 1.5px solid #b0aa9a;
+    border-radius: 6px;
+    display: block;
+  }
 
-    /* ── Hero ── */
-    .hero {
-      padding: 52px 24px 40px;
-      max-width: 680px;
-      margin: 0 auto;
-    }
+  .sblrva-home .map-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 6px 0 0;
+  }
 
-    .hero h1 {
-      font-size: 1.35rem;
-      line-height: 1.55;
-      color: #3a3a2e;
-      margin: 0 0 10px;
-      font-weight: normal;
-    }
+  .sblrva-home .map-note {
+    font-size: 0.75rem;
+    color: #9a9080;
+    margin: 0;
+  }
 
-    .hero .sub {
-      font-size: 0.88rem;
-      color: #6b7c5c;
-      margin: 0;
-    }
+  .sblrva-home .map-fullscreen {
+    font-size: 0.75rem;
+    color: #6b7c5c;
+    text-decoration: none;
+    font-family: "Courier New", Courier, monospace;
+    letter-spacing: 0.03em;
+  }
 
-    /* ── Map ── */
-    .map-wrap {
-      max-width: 900px;
-      margin: 0 auto 0;
-      padding: 0 24px;
-    }
+  .sblrva-home .map-fullscreen:hover { color: #3a3a2e; }
 
-    .map-wrap iframe {
-      width: 100%;
-      height: 520px;
-      border: 1.5px solid #b0aa9a;
-      border-radius: 6px;
-      display: block;
-    }
+  .sblrva-home .cta-strip {
+    background: #6b7c5c;
+    padding: 28px 24px;
+    text-align: center;
+    margin-top: 32px;
+  }
 
-    .map-note {
-      font-size: 0.75rem;
-      color: #9a9080;
-      text-align: right;
-      margin: 6px 0 0;
-    }
+  .sblrva-home .cta-strip p {
+    color: #ede9df;
+    margin: 0 0 14px;
+    font-size: 0.9rem;
+    font-family: "Courier New", Courier, monospace;
+  }
 
-    /* ── Sections ── */
-    .section {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 48px 24px;
-    }
+  .sblrva-home .cta-btn {
+    display: inline-block;
+    background: #ede9df;
+    color: #3a3a2e;
+    text-decoration: none;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 0.85rem;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    padding: 11px 28px;
+    border-radius: 5px;
+    text-transform: uppercase;
+  }
 
-    .section + .section {
-      padding-top: 0;
-    }
+  .sblrva-home .cta-btn:hover { background: #fff8ef; }
 
-    h2 {
-      font-size: 0.95rem;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      color: #6b7c5c;
-      margin: 0 0 12px;
-      border-bottom: 1px solid #c8c2b4;
-      padding-bottom: 6px;
-    }
+  .sblrva-home .section {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
 
-    p {
-      font-size: 0.92rem;
-      line-height: 1.75;
-      margin: 0 0 14px;
-      color: #2c2c2c;
-    }
+  .sblrva-home h2 {
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #6b7c5c;
+    margin: 0 0 12px;
+    border-bottom: 1px solid #c8c2b4;
+    padding-bottom: 6px;
+  }
 
-    /* ── CTA strip ── */
-    .cta-strip {
-      background: #6b7c5c;
-      padding: 28px 24px;
-      text-align: center;
-    }
+  .sblrva-home p {
+    font-size: 0.92rem;
+    line-height: 1.75;
+    margin: 0 0 14px;
+    color: #2c2c2c;
+  }
 
-    .cta-strip p {
-      color: #ede9df;
-      margin: 0 0 14px;
-      font-size: 0.9rem;
-    }
+  .sblrva-home .form-row { margin-bottom: 16px; }
 
-    .cta-btn {
-      display: inline-block;
-      background: #ede9df;
-      color: #3a3a2e;
-      text-decoration: none;
-      font-family: "Courier New", Courier, monospace;
-      font-size: 0.85rem;
-      font-weight: bold;
-      letter-spacing: 0.05em;
-      padding: 11px 28px;
-      border-radius: 5px;
-      text-transform: uppercase;
-    }
+  .sblrva-home label {
+    display: block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7c5c;
+    margin-bottom: 5px;
+    font-family: "Courier New", Courier, monospace;
+  }
 
-    .cta-btn:hover { background: #fff8ef; }
+  .sblrva-home input[type="email"],
+  .sblrva-home textarea {
+    width: 100%;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 0.88rem;
+    background: #fff8ef;
+    border: 1.5px solid #b0aa9a;
+    border-radius: 5px;
+    padding: 10px 12px;
+    color: #2c2c2c;
+    resize: vertical;
+  }
 
-    /* ── Contact form ── */
-    .form-row {
-      margin-bottom: 16px;
-    }
+  .sblrva-home input[type="email"]:focus,
+  .sblrva-home textarea:focus {
+    outline: none;
+    border-color: #6b7c5c;
+  }
 
-    label {
-      display: block;
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #6b7c5c;
-      margin-bottom: 5px;
-    }
+  .sblrva-home textarea { min-height: 110px; }
 
-    input[type="email"],
-    textarea {
-      width: 100%;
-      font-family: "Courier New", Courier, monospace;
-      font-size: 0.88rem;
-      background: #fff8ef;
-      border: 1.5px solid #b0aa9a;
-      border-radius: 5px;
-      padding: 10px 12px;
-      color: #2c2c2c;
-      resize: vertical;
-    }
+  .sblrva-home .submit-btn {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 0.85rem;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: #6b7c5c;
+    color: #ede9df;
+    border: none;
+    border-radius: 5px;
+    padding: 11px 28px;
+    cursor: pointer;
+  }
 
-    input[type="email"]:focus,
-    textarea:focus {
-      outline: none;
-      border-color: #6b7c5c;
-    }
+  .sblrva-home .submit-btn:hover { background: #5a6b4c; }
 
-    textarea { min-height: 110px; }
+  .sblrva-home .form-msg {
+    font-size: 0.82rem;
+    margin-top: 10px;
+    color: #6b7c5c;
+    display: none;
+    font-family: "Courier New", Courier, monospace;
+  }
 
-    .submit-btn {
-      font-family: "Courier New", Courier, monospace;
-      font-size: 0.85rem;
-      font-weight: bold;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      background: #6b7c5c;
-      color: #ede9df;
-      border: none;
-      border-radius: 5px;
-      padding: 11px 28px;
-      cursor: pointer;
-    }
+  @media (max-width: 540px) {
+    .sblrva-home .hero { padding: 28px 16px 20px; }
+    .sblrva-home .hero h1 { font-size: 1.1rem; }
+    .sblrva-home .map-wrap { padding: 0 16px; }
+    .sblrva-home .map-wrap iframe { height: 460px; }
+    .sblrva-home .section { padding: 32px 16px; }
+  }
+</style>
 
-    .submit-btn:hover { background: #5a6b4c; }
-
-    .form-msg {
-      font-size: 0.82rem;
-      margin-top: 10px;
-      color: #6b7c5c;
-      display: none;
-    }
-
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid #c8c2b4;
-      text-align: center;
-      padding: 20px 24px;
-      font-size: 0.75rem;
-      color: #9a9080;
-    }
-
-    /* ── Mobile ── */
-    @media (max-width: 540px) {
-      .hero { padding: 32px 16px 28px; }
-      .hero h1 { font-size: 1.1rem; }
-      .map-wrap { padding: 0 16px; }
-      .map-wrap iframe { height: 340px; }
-      .section { padding: 36px 16px; }
-      .nav-links { gap: 16px; }
-    }
-  </style>
-</head>
-<body>
-
-  <nav>
-    <a class="nav-brand" href="/">safebikelanesrva.com</a>
-    <ul class="nav-links">
-      <li><a href="/about">About</a></li>
-      <li><a href="/submit-your-ride">Submit a ride</a></li>
-    </ul>
-  </nav>
+<div class="sblrva-home">
 
   <div class="hero">
     <h1>Eventually this map will show detected hazards in bike lanes.</h1>
@@ -254,7 +196,10 @@
       loading="lazy"
       allowfullscreen>
     </iframe>
-    <p class="map-note">Hazard detections update as new rides are processed.</p>
+    <div class="map-footer">
+      <p class="map-note">Hazard detections update as new rides are processed.</p>
+      <a class="map-fullscreen" href="https://bikelaneobjectdetect.onrender.com/map" target="_blank" rel="noopener">View full screen &rarr;</a>
+    </div>
   </div>
 
   <div class="cta-strip">
@@ -266,52 +211,46 @@
     <h2>Get in touch</h2>
     <p>Questions, ideas, or spotted something wrong on the map? Send a message below.</p>
 
-    <form id="contactForm">
+    <form id="sblrvaContactForm">
       <div class="form-row">
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required placeholder="you@example.com">
+        <label for="sblrvaEmail">Email</label>
+        <input type="email" id="sblrvaEmail" name="email" required placeholder="you@example.com">
       </div>
       <div class="form-row">
-        <label for="message">Message</label>
-        <textarea id="message" name="message" required placeholder="Your message..."></textarea>
+        <label for="sblrvaMessage">Message</label>
+        <textarea id="sblrvaMessage" name="message" required placeholder="Your message..."></textarea>
       </div>
       <button type="submit" class="submit-btn">Send</button>
-      <p class="form-msg" id="formMsg">Message sent. Thanks!</p>
+      <p class="form-msg" id="sblrvaFormMsg">Message sent. Thanks!</p>
     </form>
   </div>
 
-  <footer>
-    &copy; 2025. All rights reserved.
-  </footer>
+</div>
 
-  <script>
-    document.getElementById("contactForm").addEventListener("submit", async function(e) {
-      e.preventDefault();
-      const btn = this.querySelector("button");
-      const msg = document.getElementById("formMsg");
-      btn.disabled = true;
-      btn.textContent = "Sending...";
-
-      const data = new FormData(this);
-      try {
-        const res = await fetch("https://formsubmit.co/ajax/YOUR_EMAIL_HERE", {
-          method: "POST",
-          headers: { "Accept": "application/json" },
-          body: data,
-        });
-        if (res.ok) {
-          msg.style.display = "block";
-          this.reset();
-        } else {
-          btn.textContent = "Error — try again";
-          btn.disabled = false;
-        }
-      } catch {
+<script>
+  document.getElementById("sblrvaContactForm").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const btn = this.querySelector("button");
+    const msg = document.getElementById("sblrvaFormMsg");
+    btn.disabled = true;
+    btn.textContent = "Sending...";
+    const data = new FormData(this);
+    try {
+      const res = await fetch("https://formsubmit.co/ajax/YOUR_EMAIL_HERE", {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+        body: data,
+      });
+      if (res.ok) {
+        msg.style.display = "block";
+        this.reset();
+      } else {
         btn.textContent = "Error — try again";
         btn.disabled = false;
       }
-    });
-  </script>
-
-</body>
-</html>
+    } catch {
+      btn.textContent = "Error — try again";
+      btn.disabled = false;
+    }
+  });
+</script>
