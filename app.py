@@ -452,6 +452,34 @@ def handle_upload():
         }), 500
 
 
+@app.post("/api/flag-detection")
+def flag_detection():
+    if supabase is None:
+        return jsonify({"error": "Database not configured"}), 500
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "No data"}), 400
+    try:
+        supabase.table("flagged_detections").insert({
+            "detection_id": str(data.get("detection_id", "")),
+            "lat": data.get("lat"),
+            "lon": data.get("lon"),
+            "class_name": str(data.get("class_name", "")),
+        }).execute()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/admin/flagged")
+@upload_login_required
+def admin_flagged():
+    if supabase is None:
+        return "Database not configured", 500
+    result = supabase.table("flagged_detections").select("*").order("flagged_at", desc=True).execute()
+    return render_template("admin_flagged.html", flags=result.data or [])
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
     app.run(host="0.0.0.0", port=port, debug=False)
