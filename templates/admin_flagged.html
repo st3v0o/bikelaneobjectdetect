@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Flagged Detections – Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      background: #ede9df;
+      color: #2c2c2c;
+      margin: 0;
+      padding: 32px 20px 60px;
+    }
+    .page { max-width: 860px; margin: 0 auto; }
+    h1 {
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #3a3428;
+      margin: 0 0 4px;
+    }
+    .meta {
+      font-size: 0.78rem;
+      color: #7a7060;
+      margin: 0 0 28px;
+    }
+    .meta a { color: #6b7c5c; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    th {
+      text-align: left;
+      padding: 8px 12px;
+      background: #6b7c5c;
+      color: #ede9df;
+      font-weight: 700;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #d8d2c4;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f5f1e8; }
+    tr:hover td { background: #ece7da; }
+    .empty {
+      text-align: center;
+      padding: 48px 20px;
+      color: #7a7060;
+      font-size: 0.88rem;
+    }
+    .logout {
+      display: inline-block;
+      margin-top: 28px;
+      font-size: 0.75rem;
+      color: #7a7060;
+      text-decoration: none;
+      border-bottom: 1px solid #b0aa9a;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Flagged Detections</h1>
+    <p class="meta">
+      {{ flags | length }} report{{ 's' if flags | length != 1 else '' }} queued for review.
+      &nbsp;·&nbsp; <a href="/map">Back to map</a>
+    </p>
+
+    {% if flags %}
+    <table>
+      <thead>
+        <tr>
+          <th>Flagged at</th>
+          <th>Class</th>
+          <th>Lat</th>
+          <th>Lon</th>
+          <th>Detection ID</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in flags %}
+        <tr>
+          <td>{{ f.flagged_at or '—' }}</td>
+          <td>{{ f.class_name or '—' }}</td>
+          <td>{{ '%.5f' | format(f.lat) if f.lat is not none else '—' }}</td>
+          <td>{{ '%.5f' | format(f.lon) if f.lon is not none else '—' }}</td>
+          <td style="font-size:0.7rem;color:#7a7060;">{{ f.detection_id or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">No flagged detections yet.</div>
+    {% endif %}
+
+    <br>
+    <a class="logout" href="/upload/logout">Log out</a>
+  </div>
+</body>
+</html>
