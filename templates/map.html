@@ -118,6 +118,23 @@
       margin-top: 8px;
     }
 
+    .flag-btn {
+      margin-top: 10px;
+      width: 100%;
+      padding: 6px 10px;
+      background: #fff8ef;
+      border: 1.5px solid #b0aa9a;
+      border-radius: 4px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.75rem;
+      color: #5a5445;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .flag-btn:hover { background: #f5ede0; }
+    .flag-btn:disabled { color: #999; cursor: default; }
+
     @media (max-width: 640px) {
       #filter-bar {
         display: flex;
@@ -221,6 +238,31 @@
 
     const bounds = L.latLngBounds([]);
 
+    async function flagDetection(detectionId, lat, lon, className) {
+      const btn = document.getElementById('flag-' + detectionId);
+      if (btn) { btn.disabled = true; btn.textContent = 'Reporting...'; }
+      try {
+        const res = await fetch('/api/flag-detection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ detection_id: detectionId, lat, lon, class_name: className })
+        });
+        if (btn) {
+          if (res.ok) {
+            btn.textContent = '✓ Reported — thanks';
+            btn.style.background = '#e8f0e0';
+            btn.style.borderColor = '#6b7c5c';
+            btn.style.color = '#4e5c41';
+          } else {
+            btn.textContent = 'Error — try again';
+            btn.disabled = false;
+          }
+        }
+      } catch (e) {
+        if (btn) { btn.textContent = 'Network error'; btn.disabled = false; }
+      }
+    }
+
     function escapeHtml(str) {
       if (str == null) return "";
       return String(str)
@@ -279,15 +321,21 @@
           fillOpacity: 0.8
         }).addTo(map);
 
+        const detId = String(row.id || (lat.toFixed(6) + "_" + lon.toFixed(6)));
         const popupHtml = `
-          <div style="max-width: 300px;">
-            <strong>${escapeHtml(row.class_name || "Hazard")}</strong><br>
-            Job: ${escapeHtml(row.job_name || "N/A")}<br>
-            Confidence: ${row.confidence != null ? Number(row.confidence).toFixed(2) : "N/A"}<br>
-            Time: ${row.timestamp_seconds != null ? row.timestamp_seconds + " sec" : "N/A"}<br>
-            Lat: ${lat}<br>
-            Lon: ${lon}
+          <div style="max-width:280px;font-family:'Courier New',monospace;font-size:0.82rem;line-height:1.6;">
+            <strong style="font-size:0.9rem;">${escapeHtml(row.class_name || "Hazard")}</strong><br>
+            <span style="color:#7a7060;">Job:</span> ${escapeHtml(row.job_name || "N/A")}<br>
+            <span style="color:#7a7060;">Confidence:</span> ${row.confidence != null ? Number(row.confidence).toFixed(2) : "N/A"}<br>
+            <span style="color:#7a7060;">Time:</span> ${row.timestamp_seconds != null ? row.timestamp_seconds + " sec" : "N/A"}<br>
+            <span style="color:#7a7060;">Lat:</span> ${lat.toFixed(5)}<br>
+            <span style="color:#7a7060;">Lon:</span> ${lon.toFixed(5)}
             ${row.image_url ? `<br><img class="popup-img" src="${row.image_url}" alt="Hazard image">` : ""}
+            <br>
+            <button class="flag-btn" id="flag-${detId}"
+              onclick="flagDetection('${detId}', ${lat.toFixed(5)}, ${lon.toFixed(5)}, '${escapeHtml(row.class_name || 'Hazard')}')">
+              ⚑ Report as inaccurate
+            </button>
           </div>
         `;
 
